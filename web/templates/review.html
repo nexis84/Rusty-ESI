@@ -69,9 +69,21 @@
                                  style="width:22px;height:22px;border-radius:3px;background:var(--surface2);"
                                  onerror="this.style.display='none'">
                             {% endif %}
-                            Ship: <strong style="color:var(--text);">{{ esi.ship.ship_type_name or 'Unknown' }}</strong>
+                            🚀 Ship: <strong style="color:var(--text);">{{ esi.ship.ship_type_name or 'Unknown' }}</strong>
                             {% if esi.ship.ship_name and esi.ship.ship_name != esi.ship.ship_type_name %}
                             <span style="color:var(--text-dim);">"{{ esi.ship.ship_name }}"</span>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                        {% if location_display %}
+                        {% set sec = location_display.sec_float %}
+                        {% set sec_color = '#2ecc71' if sec >= 0.5 else ('#f39c12' if sec >= 0.1 else '#e74c3c') %}
+                        <div style="margin-top:5px;font-size:12px;color:var(--text-dim);">
+                            📍 Location:
+                            <strong style="color:{{ sec_color }};">{{ location_display.system }}</strong>
+                            <span style="color:{{ sec_color }};">({{ location_display.sec }})</span>
+                            {% if location_display.station %}
+                            &mdash; {{ location_display.station }}
                             {% endif %}
                         </div>
                         {% endif %}

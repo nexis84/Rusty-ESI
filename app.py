@@ -421,12 +421,43 @@ async def review_application(
             except Exception:
                 ship["ship_type_name"] = "Unknown"
 
+    # Resolve location names (system + station if applicable)
+    location_display = None
+    if isinstance(esi_data, dict):
+        loc = esi_data.get("location") or {}
+        if isinstance(loc, dict) and not loc.get("error"):
+            system_id = loc.get("solar_system_id")
+            station_id = loc.get("station_id")
+            if system_id:
+                try:
+                    from esi.endpoints import get_system_public, get_station_public
+                    sys_data = await get_system_public(system_id)
+                    system_name = sys_data.get("name", f"System #{system_id}")
+                    sec = sys_data.get("security_status", 0.0)
+                    sec_str = f"{sec:.1f}"
+                    station_name = None
+                    if station_id and station_id < 64_000_000:  # NPC station
+                        try:
+                            sta_data = await get_station_public(station_id)
+                            station_name = sta_data.get("name")
+                        except Exception:
+                            pass
+                    location_display = {
+                        "system": system_name,
+                        "station": station_name,
+                        "sec": sec_str,
+                        "sec_float": sec,
+                    }
+                except Exception:
+                    pass
+
     return _render(request, "review.html", {
         "app": app_rec,
         "esi": esi_data,
         "flags": flags,
         "breakdown": breakdown,
         "skill_profile": skill_profile,
+        "location_display": location_display,
     })
 
 
