@@ -11,6 +11,13 @@ _db_url = settings.database_url
 if _db_url.startswith("postgres://"):
     _db_url = _db_url.replace("postgres://", "postgresql://", 1)
 
+# Strip channel_binding param — not supported by psycopg2
+if "channel_binding" in _db_url:
+    from urllib.parse import urlparse, urlencode, parse_qs, urlunparse
+    _parsed = urlparse(_db_url)
+    _qs = {k: v for k, v in parse_qs(_parsed.query).items() if k != "channel_binding"}
+    _db_url = urlunparse(_parsed._replace(query=urlencode(_qs, doseq=True)))
+
 # check_same_thread is SQLite-only
 _connect_args = {"check_same_thread": False} if _db_url.startswith("sqlite") else {}
 
