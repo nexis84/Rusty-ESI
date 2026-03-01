@@ -62,6 +62,19 @@
                             SP: <strong style="color:var(--text);">{{ "{:,}".format(esi.skills.total_sp or 0) }}</strong>
                         </div>
                         {% endif %}
+                        {% if esi.ship and not esi.ship.error %}
+                        <div style="margin-top:5px;font-size:12px;color:var(--text-dim);display:flex;align-items:center;gap:6px;">
+                            {% if esi.ship.ship_type_id %}
+                            <img src="https://images.evetech.net/types/{{ esi.ship.ship_type_id }}/render?size=32"
+                                 style="width:22px;height:22px;border-radius:3px;background:var(--surface2);"
+                                 onerror="this.style.display='none'">
+                            {% endif %}
+                            Ship: <strong style="color:var(--text);">{{ esi.ship.ship_type_name or 'Unknown' }}</strong>
+                            {% if esi.ship.ship_name and esi.ship.ship_name != esi.ship.ship_type_name %}
+                            <span style="color:var(--text-dim);">"{{ esi.ship.ship_name }}"</span>
+                            {% endif %}
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
