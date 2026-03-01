@@ -531,18 +531,25 @@ async def delete_application(
     if not app_rec:
         raise HTTPException(404)
 
+    char_name = app_rec.character_name
     recruiter_id = request.session.get("recruiter_id")
+
+    # Null out FK references in audit log so the DELETE doesn't violate the constraint
+    db.query(AuditLog).filter(AuditLog.application_id == app_id).update({"application_id": None})
+
+    db.delete(app_rec)
+    db.flush()  # ensure the DELETE is sent before the INSERT
+
     log = AuditLog(
         recruiter_id=recruiter_id,
-        application_id=app_id,
+        application_id=None,
         action="deleted",
-        detail=f"{request.session.get('character_name')} deleted application for {app_rec.character_name}",
+        detail=f"{request.session.get('character_name')} deleted application for {char_name}",
     )
     db.add(log)
-    db.delete(app_rec)
     db.commit()
 
-    request.session["flash_success"] = f"Application for {app_rec.character_name} deleted."
+    request.session["flash_success"] = f"Application for {char_name} deleted."
     return RedirectResponse("/dashboard", status_code=303)
 
 
@@ -583,6 +590,14 @@ async def delete_invite(
     invite = db.query(InviteLink).filter_by(id=invite_id).first()
     if not invite:
         raise HTTPException(404)
+
+    # Delete the child application first (it has a non-nullable FK back to this invite)
+    if invite.application:
+        child_app_id = invite.application.id
+        db.query(AuditLog).filter(AuditLog.application_id == child_app_id).update({"application_id": None})
+        db.delete(invite.application)
+        db.flush()
+
     db.delete(invite)
     db.commit()
     request.session["flash_success"] = "Invite link deleted."
