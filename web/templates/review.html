@@ -159,6 +159,44 @@
                     </div>
                 </div>
 
+                <!-- Skill lists per category -->
+                {% set _cats = [
+                    ('⚔ PVP', '#e74c3c', skill_profile.skills_pvp),
+                    ('🏭 Industry', '#3498db', skill_profile.skills_industry),
+                    ('🛡 Support / Core', '#2ecc71', skill_profile.skills_support),
+                    ('General', '#888', skill_profile.skills_general),
+                ] %}
+                {% for cat_label, cat_color, cat_skills in _cats %}
+                {% if cat_skills %}
+                <details style="margin-bottom:6px;">
+                    <summary style="cursor:pointer;font-size:12px;font-weight:600;color:{{ cat_color }};padding:6px 0;list-style:none;display:flex;align-items:center;gap:6px;">
+                        <span style="width:8px;height:8px;border-radius:50%;background:{{ cat_color }};display:inline-block;"></span>
+                        {{ cat_label }} <span style="color:var(--text-dim);font-weight:400;">({{ cat_skills | length }})</span>
+                    </summary>
+                    <table style="width:100%;border-collapse:collapse;margin-top:4px;">
+                        <thead>
+                            <tr style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-dim);">
+                                <th style="text-align:left;padding:3px 6px;font-weight:500;">Skill</th>
+                                <th style="text-align:center;padding:3px 6px;font-weight:500;">Level</th>
+                                <th style="text-align:right;padding:3px 6px;font-weight:500;">SP</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for s in cat_skills %}
+                        <tr style="font-size:12px;border-top:1px solid var(--border);">
+                            <td style="padding:4px 6px;">{{ s.name }}</td>
+                            <td style="text-align:center;padding:4px 6px;">
+                                <span style="font-size:11px;font-weight:600;">{{ s.level_roman }}</span>
+                            </td>
+                            <td style="text-align:right;padding:4px 6px;color:var(--text-dim);font-size:11px;">{{ "{:,}".format(s.sp) }}</td>
+                        </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </details>
+                {% endif %}
+                {% endfor %}
+
                 <!-- Current / last known ship -->
                 {% if esi.ship and not esi.ship.error %}
                 <div style="border-top:1px solid var(--border);padding-top:12px;display:flex;align-items:center;gap:12px;">

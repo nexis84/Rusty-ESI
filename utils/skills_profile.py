@@ -42,8 +42,10 @@ _GROUP_ROLE: dict[int, str] = {
     1322: "industry", # Manufacturing Experience
 }
 
-# Module-level cache: skill_id (typeID) → group_id  (static EVE data)
-_skill_group_cache: dict[int, int] = {}
+# Module-level cache: skill_id → {group_id, name}  (static EVE data)
+_skill_info_cache: dict[int, dict] = {}
+
+_ROMAN = {0: "0", 1: "I", 2: "II", 3: "III", 4: "IV", 5: "V"}
 
 _ROLE_LABELS = {
     "pvp": "PVP",
@@ -54,17 +56,17 @@ _ROLE_LABELS = {
 
 
 # ---------------------------------------------------------------------------
-# Internal helper: resolve group_id via ESI with concurrency cap
+# Internal helper: resolve group_id + name via ESI with concurrency cap
 # ---------------------------------------------------------------------------
 
-async def _fetch_group_id(
+async def _fetch_skill_info(
     skill_id: int, esi_base: str, sem: asyncio.Semaphore
-) -> tuple[int, int]:
-    if skill_id in _skill_group_cache:
-        return skill_id, _skill_group_cache[skill_id]
+) -> tuple[int, dict]:
+    if skill_id in _skill_info_cache:
+        return skill_id, _skill_info_cache[skill_id]
     async with sem:
-        if skill_id in _skill_group_cache:          # re-check after acquiring
-            return skill_id, _skill_group_cache[skill_id]
+        if skill_id in _skill_info_cache:
+            return skill_id, _skill_info_cache[skill_id]
         try:
             async with httpx.AsyncClient(timeout=10.0) as http:
                 resp = await http.get(
@@ -72,11 +74,15 @@ async def _fetch_group_id(
                     headers={"Accept": "application/json"},
                 )
                 resp.raise_for_status()
-                group_id = resp.json().get("group_id", 0)
+                data = resp.json()
+                info = {
+                    "group_id": data.get("group_id", 0),
+                    "name": data.get("name") or f"Skill #{skill_id}",
+                }
         except Exception:
-            group_id = 0
-        _skill_group_cache[skill_id] = group_id
-        return skill_id, group_id
+            info = {"group_id": 0, "name": f"Skill #{skill_id}"}
+        _skill_info_cache[skill_id] = info
+        return skill_id, info
 
 
 # ---------------------------------------------------------------------------
@@ -92,11 +98,12 @@ async def classify_skills(skills: list[dict], esi_base: str) -> dict:
         esi_base: ESI base URL, e.g. 'https://esi.evetech.net/latest'
 
     Returns a dict with:
-        pvp_sp, industry_sp, support_sp, general_sp  – raw SP totals
-        pvp_pct, industry_pct, support_pct            – integer percentages
-        primary_role                                  – dominant role label
-        secondary_roles                               – list of roles with ≥ 20 % share
-        top_pvp, top_industry, top_support            – top-5 skill dicts each
+        pvp_sp, industry_sp, support_sp, general_sp         – raw SP totals
+        pvp_pct, industry_pct, support_pct                  – integer percentages
+        primary_role                                         – dominant role label
+        secondary_roles                                      – list of roles with ≥ 20 % share
+        skills_pvp, skills_industry, skills_support,
+        skills_general                                       – full sorted skill lists
     """
     if not skills:
         return _empty_profile()
@@ -104,9 +111,9 @@ async def classify_skills(skills: list[dict], esi_base: str) -> dict:
     skill_ids = list({s["skill_id"] for s in skills if isinstance(s, dict) and "skill_id" in s})
     sem = asyncio.Semaphore(20)
     results = await asyncio.gather(
-        *[_fetch_group_id(sid, esi_base, sem) for sid in skill_ids]
+        *[_fetch_skill_info(sid, esi_base, sem) for sid in skill_ids]
     )
-    id_to_group = dict(results)
+    id_to_info = dict(results)
 
     sp: dict[str, int] = {"pvp": 0, "industry": 0, "support": 0, "general": 0}
     buckets: dict[str, list] = {"pvp": [], "industry": [], "support": [], "general": []}
@@ -117,16 +124,23 @@ async def classify_skills(skills: list[dict], esi_base: str) -> dict:
         sid = skill.get("skill_id", 0)
         skill_sp = skill.get("skillpoints_in_skill", 0) or 0
         level = skill.get("active_skill_level", 0) or 0
-        group_id = id_to_group.get(sid, 0)
+        info = id_to_info.get(sid, {"group_id": 0, "name": f"Skill #{sid}"})
+        group_id = info["group_id"]
+        name = info["name"]
         role = _GROUP_ROLE.get(group_id, "general")
         sp[role] += skill_sp
-        buckets[role].append({"skill_id": sid, "sp": skill_sp, "level": level})
+        buckets[role].append({
+            "skill_id": sid,
+            "name": name,
+            "sp": skill_sp,
+            "level": level,
+            "level_roman": _ROMAN.get(level, str(level)),
+        })
 
     total = sum(sp.values()) or 1
 
     for role in buckets:
         buckets[role].sort(key=lambda x: x["sp"], reverse=True)
-        buckets[role] = buckets[role][:5]
 
     dominant = max(("pvp", "industry", "support", "general"), key=lambda r: sp[r])
     secondary = [r for r in ("pvp", "industry", "support") if r != dominant and sp[r] / total >= 0.20]
@@ -141,9 +155,10 @@ async def classify_skills(skills: list[dict], esi_base: str) -> dict:
         "support_pct": int(sp["support"] / total * 100),
         "primary_role": _ROLE_LABELS.get(dominant, "Unclassified"),
         "secondary_roles": [_ROLE_LABELS[r] for r in secondary],
-        "top_pvp": buckets["pvp"],
-        "top_industry": buckets["industry"],
-        "top_support": buckets["support"],
+        "skills_pvp": buckets["pvp"],
+        "skills_industry": buckets["industry"],
+        "skills_support": buckets["support"],
+        "skills_general": buckets["general"],
     }
 
 
@@ -152,5 +167,5 @@ def _empty_profile() -> dict:
         "pvp_sp": 0, "industry_sp": 0, "support_sp": 0, "general_sp": 0,
         "pvp_pct": 0, "industry_pct": 0, "support_pct": 0,
         "primary_role": "Unknown", "secondary_roles": [],
-        "top_pvp": [], "top_industry": [], "top_support": [],
+        "skills_pvp": [], "skills_industry": [], "skills_support": [], "skills_general": [],
     }
