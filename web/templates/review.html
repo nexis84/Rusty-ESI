@@ -42,9 +42,14 @@
                         <div style="font-size:18px;font-weight:700;">{{ app.character_name }}</div>
                         {% if esi.character_public %}
                         <div style="color:var(--text-dim);font-size:13px;margin-top:4px;">
-                            {{ esi.corp_public.name if esi.corp_public else 'Unknown Corp' }}
+                            {% set corp_id = esi.character_public.corporation_id %}
+                            {% set corp_name = esi.corp_public.name if esi.corp_public else 'Corp #' ~ corp_id %}
+                            <a href="https://evewho.com/corporation/{{ corp_id }}" target="_blank" style="color:var(--accent);text-decoration:none;">{{ corp_name }}</a>
+                            <a href="https://zkillboard.com/corporation/{{ corp_id }}/" target="_blank" style="color:var(--text-dim);font-size:11px;text-decoration:none;margin-left:4px;">[zK]</a>
                             {% if esi.alliance_public %}
-                             / {{ esi.alliance_public.name }}
+                            {% set ally_id = esi.character_public.alliance_id %}
+                             / <a href="https://evewho.com/alliance/{{ ally_id }}" target="_blank" style="color:var(--accent);text-decoration:none;">{{ esi.alliance_public.name }}</a>
+                            <a href="https://zkillboard.com/alliance/{{ ally_id }}/" target="_blank" style="color:var(--text-dim);font-size:11px;text-decoration:none;margin-left:4px;">[zK]</a>
                             {% endif %}
                         </div>
                         <div style="color:var(--text-dim);font-size:12px;margin-top:2px;">
@@ -210,14 +215,11 @@
                     <div style="padding:6px 0;border-left:2px solid var(--border);padding-left:14px;position:relative;">
                         <div style="position:absolute;left:-5px;top:10px;width:8px;height:8px;border-radius:50%;background:var(--accent);"></div>
                         <div style="font-size:13px;font-weight:500;">
-                            {{ entry.corp_name if entry.corp_name else 'Corp #' ~ entry.corporation_id }}
+                            <a href="https://evewho.com/corporation/{{ entry.corporation_id }}" target="_blank" style="color:var(--text);text-decoration:none;">{{ entry.corp_name if entry.corp_name else 'Corp #' ~ entry.corporation_id }}</a>
+                            <a href="https://zkillboard.com/corporation/{{ entry.corporation_id }}/" target="_blank" style="color:var(--text-dim);font-size:11px;text-decoration:none;margin-left:4px;">[zK]</a>
                         </div>
                         <div style="font-size:11px;color:var(--text-dim);margin-top:2px;">
                             From: {{ entry.start_date[:10] if entry.start_date else '?' }}
-                            &nbsp;&middot;&nbsp;
-                            <a href="https://evewho.com/corporation/{{ entry.corporation_id }}" target="_blank" style="color:var(--accent);text-decoration:none;">EVE Who</a>
-                            &nbsp;&middot;&nbsp;
-                            <a href="https://zkillboard.com/corporation/{{ entry.corporation_id }}/" target="_blank" style="color:var(--accent);text-decoration:none;">zKill</a>
                         </div>
                     </div>
                     {% endfor %}

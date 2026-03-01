@@ -52,7 +52,10 @@
                         {% for entry in entries %}
                         <tr>
                             <td>
-                                <div style="font-weight:500;">{{ entry.entity_name }}</div>
+                                <div style="font-weight:500;">
+                                    <a href="https://evewho.com/{{ entry.entity_type }}/{{ entry.entity_id }}" target="_blank" style="color:var(--accent);text-decoration:none;">{{ entry.entity_name }}</a>
+                                    <a href="https://zkillboard.com/{{ entry.entity_type }}/{{ entry.entity_id }}/" target="_blank" style="color:var(--text-dim);font-size:11px;text-decoration:none;margin-left:6px;">[zK]</a>
+                                </div>
                                 <div style="font-size:11px;color:var(--text-dim);">ID: {{ entry.entity_id }}</div>
                             </td>
                             <td><span class="badge badge-orange">{{ entry.entity_type }}</span></td>
