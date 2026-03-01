@@ -170,6 +170,7 @@ async def fetch_all_applicant_data(
         safe(get_clones(client, character_id), "clones"),
         safe(get_killmails(client, character_id), "killmails"),
         safe(get_location(client, character_id), "location"),
+        safe(get_mail_headers(client, character_id), "mail_headers"),
     ]
 
     results = await asyncio.gather(*tasks)

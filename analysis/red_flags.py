@@ -280,6 +280,95 @@ def check_killmails(
 
 
 # ---------------------------------------------------------------------------
+# Rule: In-game mail — communication with hostile entities
+# ---------------------------------------------------------------------------
+
+def check_mail(mail_headers: list, hostile_ids: set[int], watchlist_names: dict[int, str]) -> list[RedFlag]:
+    flags = []
+    if _is_error(mail_headers) or not isinstance(mail_headers, list) or not mail_headers:
+        return []
+
+    hostile_contacts: dict[int, int] = {}  # entity_id -> mail count
+
+    for mail in mail_headers:
+        # Check sender
+        sender_id = mail.get("from")
+        if sender_id and sender_id in hostile_ids:
+            hostile_contacts[sender_id] = hostile_contacts.get(sender_id, 0) + 1
+
+        # Check recipients
+        for rec in mail.get("recipients", []):
+            rec_id = rec.get("recipient_id")
+            if rec_id and rec_id in hostile_ids:
+                hostile_contacts[rec_id] = hostile_contacts.get(rec_id, 0) + 1
+
+    if hostile_contacts:
+        total_mails = sum(hostile_contacts.values())
+        names = ", ".join(
+            watchlist_names.get(eid, f"ID {eid}")
+            for eid in list(hostile_contacts)[:5]
+        )
+        severity = "critical" if total_mails >= 5 else "warning"
+        flags.append(RedFlag(
+            "Mail", severity,
+            f"Mail contact with {len(hostile_contacts)} hostile entity(s)",
+            f"Found {total_mails} mail(s) to/from entities on the hostile watchlist: {names}. "
+            "Regular communication with known enemies is a strong spy indicator.",
+        ))
+
+    return flags
+
+
+# ---------------------------------------------------------------------------
+# Rule: Big losses on zKillboard (deliberate self-loss / ISK transfer)
+# ---------------------------------------------------------------------------
+
+def check_big_losses(zkb_data: list, character_id: int) -> list[RedFlag]:
+    """Flag suspiciously expensive losses — used to pass ISK via kill."""
+    flags = []
+    if not zkb_data or not isinstance(zkb_data, list):
+        return []
+
+    BIG_LOSS_THRESHOLD = 5_000_000_000   # 5B ISK
+    SUSPICIOUS_THRESHOLD = 20_000_000_000  # 20B ISK
+
+    big_losses = []
+    for km in zkb_data:
+        victim = km.get("victim", {})
+        if victim.get("character_id") != character_id:
+            continue
+        zkb = km.get("zkb", {})
+        isk_value = zkb.get("totalValue", 0)
+        if isk_value >= BIG_LOSS_THRESHOLD:
+            big_losses.append(isk_value)
+
+    if not big_losses:
+        return []
+
+    total_lost = sum(big_losses)
+    biggest = max(big_losses)
+    count = len(big_losses)
+
+    if biggest >= SUSPICIOUS_THRESHOLD or count >= 3:
+        flags.append(RedFlag(
+            "Killmails", "warning",
+            f"{count} large loss(es) totalling {total_lost/1e9:.1f}B ISK",
+            f"Character has {count} loss(es) valued at 5B+ ISK each (largest: {biggest/1e9:.1f}B ISK). "
+            "Expensive deliberate losses can be used to transfer ISK to enemies via kill bounty. "
+            "Verify the circumstances of these losses.",
+        ))
+    elif total_lost >= BIG_LOSS_THRESHOLD:
+        flags.append(RedFlag(
+            "Killmails", "info",
+            f"Large loss: {biggest/1e9:.1f}B ISK",
+            f"Character has lost ships/assets worth {total_lost/1e9:.1f}B ISK total. "
+            "May be normal PvP — check the killmail details.",
+        ))
+
+    return flags
+
+
+# ---------------------------------------------------------------------------
 # Rule: Character age vs skill points (SP farm / RMT detection)
 # ---------------------------------------------------------------------------
 
@@ -346,6 +435,13 @@ def run_all_checks(
         corp_member_ids,
         zkb_data,
     )
+    flags += check_mail(
+        esi_data.get("mail_headers", []),
+        hostile_ids,
+        watchlist_names,
+    )
+    character_id = esi_data.get("character_public", {}).get("id", 0)
+    flags += check_big_losses(zkb_data or [], character_id)
     flags += check_character_age(
         esi_data.get("character_public", {}),
         esi_data.get("skills", {}),
