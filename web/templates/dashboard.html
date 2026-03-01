@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — ESI Checker{% endblock %}
+{% block content %}
+<div class="container">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+        <h1 class="page-title" style="margin-bottom:0;">Recruitment Dashboard</h1>
+        <a href="/invites/new" class="btn btn-primary">+ Generate Invite Link</a>
+    </div>
+
+    <!-- Stats row -->
+    <div class="grid-3" style="margin-bottom:20px;">
+        <div class="card" style="text-align:center;padding:16px;">
+            <div style="font-size:28px;font-weight:700;color:var(--accent);">{{ stats.pending }}</div>
+            <div style="color:var(--text-dim);font-size:12px;margin-top:4px;">PENDING REVIEW</div>
+        </div>
+        <div class="card" style="text-align:center;padding:16px;">
+            <div style="font-size:28px;font-weight:700;color:var(--green);">{{ stats.approved }}</div>
+            <div style="color:var(--text-dim);font-size:12px;margin-top:4px;">APPROVED (30 DAYS)</div>
+        </div>
+        <div class="card" style="text-align:center;padding:16px;">
+            <div style="font-size:28px;font-weight:700;color:var(--red);">{{ stats.denied }}</div>
+            <div style="color:var(--text-dim);font-size:12px;margin-top:4px;">DENIED (30 DAYS)</div>
+        </div>
+    </div>
+
+    <!-- Filter tabs -->
+    <div style="display:flex;gap:8px;margin-bottom:16px;">
+        {% for tab in ["all","pending","approved","denied","hold"] %}
+        <a href="/dashboard?status={{ tab }}"
+           class="btn {% if current_status == tab %}btn-primary{% else %}btn-ghost{% endif %}"
+           style="padding:6px 14px;font-size:12px;">
+            {{ tab | capitalize }}
+        </a>
+        {% endfor %}
+    </div>
+
+    <!-- Applications table -->
+    <div class="card" style="padding:0;overflow:hidden;">
+        {% if applications %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Character</th>
+                    <th>Score</th>
+                    <th>Red Flags</th>
+                    <th>Status</th>
+                    <th>Submitted</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for app in applications %}
+                <tr>
+                    <td>
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <img src="https://images.evetech.net/characters/{{ app.character_id }}/portrait?size=32"
+                                 style="width:32px;height:32px;border-radius:4px;"
+                                 onerror="this.style.display='none'">
+                            <div>
+                                <div style="font-weight:500;">{{ app.character_name }}</div>
+                                <div style="font-size:11px;color:var(--text-dim);">ID: {{ app.character_id }}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        {% if app.trust_score is not none %}
+                        <span class="badge badge-{{ app.score_band }}">{{ app.trust_score }}/100</span>
+                        {% else %}
+                        <span style="color:var(--text-dim);">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if app.red_flags_json %}
+                        {% set flags = app.get_red_flags() %}
+                        {% set critical_count = flags | selectattr("severity", "eq", "critical") | list | length %}
+                        {% if critical_count > 0 %}
+                        <span class="sev-critical">{{ critical_count }} critical</span>
+                        {% else %}
+                        <span style="color:var(--text-dim);">{{ flags | length }} total</span>
+                        {% endif %}
+                        {% else %}
+                        <span style="color:var(--text-dim);">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="badge
+                            {% if app.status == 'pending' %}badge-yellow
+                            {% elif app.status == 'scored' %}badge-orange
+                            {% elif app.status == 'approved' %}badge-green
+                            {% elif app.status == 'denied' %}badge-red
+                            {% elif app.status == 'fetching' %}badge-yellow
+                            {% else %}badge-yellow{% endif %}">
+                            {{ app.status | capitalize }}
+                        </span>
+                    </td>
+                    <td style="color:var(--text-dim);font-size:12px;">
+                        {{ app.submitted_at.strftime('%Y-%m-%d %H:%M') if app.submitted_at else '—' }}
+                    </td>
+                    <td>
+                        <div style="display:flex;gap:6px;align-items:center;">
+                            <a href="/applications/{{ app.id }}" class="btn btn-ghost" style="padding:4px 10px;font-size:12px;">Review</a>
+                            <form method="post" action="/applications/{{ app.id }}/delete" style="margin:0;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <button type="submit" class="btn btn-danger" style="padding:4px 10px;font-size:12px;" onclick="return confirm('Delete application for {{ app.character_name }}?')">✕</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div style="padding:40px;text-align:center;color:var(--text-dim);">
+            No applications found.
+            <br><br>
+            <a href="/invites/new" class="btn btn-primary">Generate your first invite link</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+{% block title %}Review: {{ app.character_name }} — ESI Checker{% endblock %}
+{% block content %}
+<div class="container">
+
+    <!-- Header row -->
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:24px;flex-wrap:wrap;">
+        <a href="/dashboard" style="color:var(--text-dim);font-size:13px;">← Dashboard</a>
+        <h1 class="page-title" style="margin:0;flex:1;">{{ app.character_name }}</h1>
+        {% if app.status in ['scored','pending','fetching'] %}
+        <form method="post" action="/applications/{{ app.id }}/decide" style="display:flex;gap:8px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button name="decision" value="approved" class="btn btn-success">✓ Approve</button>
+            <button name="decision" value="hold"     class="btn btn-warning">⏸ Hold</button>
+            <button name="decision" value="denied"   class="btn btn-danger" onclick="return confirm('Deny this application?')">✕ Deny</button>
+        </form>
+        <form method="post" action="/applications/{{ app.id }}/reanalyze">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="btn btn-ghost" title="Re-fetch ESI data and re-run analysis">↻ Re-analyze</button>
+        </form>
+        {% else %}
+        <span class="badge badge-{{ app.score_band if app.score_band else 'yellow' }}" style="font-size:14px;padding:6px 16px;">
+            {{ app.status | upper }}
+        </span>
+        {% endif %}
+        <form method="post" action="/applications/{{ app.id }}/delete">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="btn btn-danger" style="opacity:0.7;" onclick="return confirm('Permanently delete this application?')" title="Delete application">🗑 Delete</button>
+        </form>
+    </div>
+
+    <div class="grid-2">
+        <!-- Left column -->
+        <div>
+            <!-- Character overview -->
+            <div class="card">
+                <div style="display:flex;gap:16px;align-items:flex-start;">
+                    <img src="https://images.evetech.net/characters/{{ app.character_id }}/portrait?size=128"
+                         style="width:80px;height:80px;border-radius:6px;"
+                         onerror="this.style.display='none'">
+                    <div style="flex:1;">
+                        <div style="font-size:18px;font-weight:700;">{{ app.character_name }}</div>
+                        {% if esi.character_public %}
+                        <div style="color:var(--text-dim);font-size:13px;margin-top:4px;">
+                            {{ esi.corp_public.name if esi.corp_public else 'Unknown Corp' }}
+                            {% if esi.alliance_public %}
+                             / {{ esi.alliance_public.name }}
+                            {% endif %}
+                        </div>
+                        <div style="color:var(--text-dim);font-size:12px;margin-top:2px;">
+                            Created: {{ esi.character_public.birthday[:10] if esi.character_public.birthday else '—' }}
+                            &nbsp;|&nbsp; SEC: {{ "%.1f" | format(esi.character_public.security_status or 0) }}
+                        </div>
+                        {% endif %}
+                        {% if esi.skills %}
+                        <div style="margin-top:6px;font-size:12px;color:var(--text-dim);">
+                            SP: <strong style="color:var(--text);">{{ "{:,}".format(esi.skills.total_sp or 0) }}</strong>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Trust score -->
+            <div class="card">
+                <div class="card-title">Trust Score</div>
+                <div style="display:flex;align-items:center;gap:24px;">
+                    <div class="score-circle {{ app.score_band or 'yellow' }}">
+                        {{ app.trust_score if app.trust_score is not none else '?' }}
+                    </div>
+                    <div style="flex:1;">
+                        <div style="font-weight:600;font-size:15px;margin-bottom:6px;">
+                            {{ app.recommendation or 'Analysis in progress...' }}
+                        </div>
+                        {% if breakdown %}
+                        {% for key, val in breakdown.items() %}
+                        {% set max_val = weights[key] %}
+                        <div style="margin-bottom:4px;">
+                            <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-dim);margin-bottom:2px;">
+                                <span>{{ key | replace('_',' ') | title }}</span>
+                                <span>{{ val }}/{{ max_val }}</span>
+                            </div>
+                            <div style="height:4px;background:var(--surface2);border-radius:2px;">
+                                <div style="height:4px;border-radius:2px;width:{{ (val/max_val*100)|int }}%;
+                                    background:{% if val == max_val %}var(--green){% elif val > max_val*0.5 %}var(--yellow){% else %}var(--red){% endif %};">
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Red flags -->
+            <div class="card">
+                <div class="card-title">Red Flags ({{ flags | length }})</div>
+                {% if flags %}
+                {% for flag in flags %}
+                <div style="padding:10px 0;border-bottom:1px solid var(--border);">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                        <span class="sev-{{ flag.severity }}">
+                            {% if flag.severity == 'critical' %}🔴
+                            {% elif flag.severity == 'warning' %}🟠
+                            {% else %}🔵{% endif %}
+                            {{ flag.severity | upper }}
+                        </span>
+                        <span style="font-weight:500;">{{ flag.message }}</span>
+                        <span style="font-size:11px;color:var(--text-dim);margin-left:auto;">{{ flag.category }}</span>
+                    </div>
+                    <div style="font-size:12px;color:var(--text-dim);padding-left:20px;">{{ flag.detail }}</div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <p style="color:var(--green);">No red flags detected.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Right column -->
+        <div>
+            <!-- Corp history timeline -->
+            <div class="card">
+                <div class="card-title">Corporation History</div>
+                {% if esi.corp_history %}
+                <div style="position:relative;padding-left:16px;">
+                    {% for entry in esi.corp_history[:20] %}
+                    <div style="padding:6px 0;border-left:2px solid var(--border);padding-left:14px;position:relative;">
+                        <div style="position:absolute;left:-5px;top:10px;width:8px;height:8px;border-radius:50%;background:var(--accent);"></div>
+                        <div style="font-size:13px;font-weight:500;">
+                            {{ entry.corp_name if entry.corp_name else 'Corp #' ~ entry.corporation_id }}
+                        </div>
+                        <div style="font-size:11px;color:var(--text-dim);margin-top:2px;">
+                            From: {{ entry.start_date[:10] if entry.start_date else '?' }}
+                            &nbsp;&middot;&nbsp;
+                            <a href="https://evewho.com/corporation/{{ entry.corporation_id }}" target="_blank" style="color:var(--accent);text-decoration:none;">EVE Who</a>
+                            &nbsp;&middot;&nbsp;
+                            <a href="https://zkillboard.com/corporation/{{ entry.corporation_id }}/" target="_blank" style="color:var(--accent);text-decoration:none;">zKill</a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% if esi.corp_history | length > 20 %}
+                    <div style="color:var(--text-dim);font-size:12px;padding-left:14px;margin-top:8px;">
+                        + {{ esi.corp_history | length - 20 }} older entries
+                    </div>
+                    {% endif %}
+                </div>
+                {% else %}
+                <p style="color:var(--text-dim);">No corp history data.</p>
+                {% endif %}
+            </div>
+
+            <!-- Wallet summary -->
+            <div class="card">
+                <div class="card-title">Wallet</div>
+                {% if esi.wallet_balance is not none %}
+                <div style="font-size:20px;font-weight:700;color:var(--accent);">
+                    {{ "{:,.0f}".format(esi.wallet_balance or 0) }} ISK
+                </div>
+                <div style="font-size:12px;color:var(--text-dim);margin-top:4px;">Current balance</div>
+                {% else %}
+                <p style="color:var(--text-dim);">Wallet data unavailable.</p>
+                {% endif %}
+            </div>
+
+            <!-- Clones -->
+            <div class="card">
+                <div class="card-title">Jump Clones ({{ (esi.clones.jump_clones if esi.clones else []) | length }})</div>
+                {% if esi.clones and esi.clones.jump_clones %}
+                {% for clone in esi.clones.jump_clones %}
+                <div style="font-size:13px;padding:4px 0;border-bottom:1px solid var(--border);">
+                    Location ID: {{ clone.location_id }} ({{ clone.location_type | default('unknown') }})
+                </div>
+                {% endfor %}
+                {% else %}
+                <p style="color:var(--text-dim);">No jump clones or data unavailable.</p>
+                {% endif %}
+            </div>
+
+            <!-- Recruiter notes & decision -->
+            <div class="card">
+                <div class="card-title">Recruiter Notes</div>
+                <form method="post" action="/applications/{{ app.id }}/notes">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <div class="form-group">
+                        <textarea name="notes" rows="4" placeholder="Add notes about this applicant...">{{ app.recruiter_notes or '' }}</textarea>
+                    </div>
+                    <button type="submit" class="btn btn-ghost">Save Notes</button>
+                </form>
+                {% if app.decision %}
+                <div style="margin-top:12px;font-size:12px;color:var(--text-dim);">
+                    Decision: <strong>{{ app.decision | upper }}</strong>
+                    {% if app.decided_at %} at {{ app.decided_at.strftime('%Y-%m-%d %H:%M') }}{% endif %}
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Raw data (collapsed) -->
+            <div class="card">
+                <div class="card-title">Raw ESI Data</div>
+                <details>
+                    <summary>Contacts ({{ (esi.contacts or []) | length }})</summary>
+                    <div class="detail-body">
+                        <pre style="font-size:11px;overflow:auto;max-height:200px;color:var(--text-dim);">{{ esi.contacts | tojson(indent=2) if esi.contacts else 'No data' }}</pre>
+                    </div>
+                </details>
+                <details>
+                    <summary>Assets ({{ (esi.assets or []) | length }})</summary>
+                    <div class="detail-body">
+                        <pre style="font-size:11px;overflow:auto;max-height:200px;color:var(--text-dim);">{{ esi.assets[:20] | tojson(indent=2) if esi.assets else 'No data' }}</pre>
+                    </div>
+                </details>
+                <details>
+                    <summary>Recent Killmails ({{ (esi.killmails or []) | length }})</summary>
+                    <div class="detail-body">
+                        <pre style="font-size:11px;overflow:auto;max-height:200px;color:var(--text-dim);">{{ esi.killmails[:10] | tojson(indent=2) if esi.killmails else 'No data' }}</pre>
+                    </div>
+                </details>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

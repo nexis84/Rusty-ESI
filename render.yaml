@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: esi-checker
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DEBUG
+        value: false
+      - key: EVE_CLIENT_ID
+        sync: false          # Set manually in Render dashboard
+      - key: EVE_CLIENT_SECRET
+        sync: false
+      - key: EVE_CALLBACK_URL
+        sync: false          # e.g. https://esi-checker.onrender.com/auth/callback
+      - key: FERNET_KEY
+        sync: false
+      - key: SESSION_SECRET
+        sync: false
+      - key: YOUR_CORP_ID
+        sync: false
+      - key: YOUR_ALLIANCE_ID
+        value: "0"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: esi-checker-db
+          property: connectionString
+
+databases:
+  - name: esi-checker-db
+    plan: free

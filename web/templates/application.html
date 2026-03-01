@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Apply — ESI Checker{% endblock %}
+{% block content %}
+<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;">
+    <div style="width:100%;max-width:480px;padding:24px;">
+
+        {% if expired %}
+        <div class="card" style="text-align:center;padding:40px;">
+            <div style="font-size:40px;margin-bottom:12px;">⏰</div>
+            <h2>Invite Link Expired</h2>
+            <p style="color:var(--text-dim);margin-top:8px;">
+                This invite link has expired or already been used.<br>
+                Please ask your recruiter for a new link.
+            </p>
+        </div>
+
+        {% elif completed %}
+        <div class="card" style="text-align:center;padding:40px;">
+            <div style="font-size:40px;margin-bottom:12px;">✅</div>
+            <h2>Application Submitted!</h2>
+            <p style="color:var(--text-dim);margin-top:8px;">
+                Your ESI data is being analysed. Your recruiter will review your
+                application and be in touch.
+            </p>
+        </div>
+
+        {% else %}
+        <div class="card" style="padding:32px;">
+            <h1 style="font-size:20px;font-weight:700;margin-bottom:4px;">Corp Recruitment Check</h1>
+            <p style="color:var(--text-dim);font-size:13px;margin-bottom:24px;">
+                To complete your application, you need to authenticate with EVE Online
+                and grant us read-only access to your character data.
+            </p>
+
+            {% if note %}
+            <div class="alert alert-info">
+                <strong>Message from recruiter:</strong> {{ note }}
+            </div>
+            {% endif %}
+
+            <div class="card" style="background:var(--surface2);margin-bottom:20px;">
+                <div class="card-title">Data we will access (read-only)</div>
+                <ul style="list-style:none;color:var(--text-dim);font-size:13px;line-height:2;">
+                    <li>✓ Corporation history</li>
+                    <li>✓ Skill totals</li>
+                    <li>✓ Wallet balance & journal</li>
+                    <li>✓ Contact list & standings</li>
+                    <li>✓ Asset locations</li>
+                    <li>✓ Jump clone locations</li>
+                    <li>✓ Recent killmails</li>
+                    <li>✓ Current location</li>
+                    <li>✓ Mail headers (subjects only, no bodies)</li>
+                </ul>
+            </div>
+
+            <p style="font-size:12px;color:var(--text-dim);margin-bottom:20px;">
+                We will <strong>never</strong> see your passwords, make changes to your
+                account, or share your data with third parties.
+                Access is read-only and can be revoked at any time from
+                <a href="https://community.eveonline.com/support/third-party-applications/" target="_blank">EVE Online's third-party app manager</a>.
+            </p>
+
+            <a href="{{ auth_url }}" class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;">
+                Authenticate with EVE Online
+            </a>
+        </div>
+        {% endif %}
+
+    </div>
+</div>
+{% endblock %}

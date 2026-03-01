@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Invite Links — ESI Checker{% endblock %}
+{% block content %}
+<div class="container">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+        <h1 class="page-title" style="margin-bottom:0;">Invite Links</h1>
+        <a href="/invites/new" class="btn btn-primary">+ New Invite Link</a>
+    </div>
+
+    {% if new_invite_url %}
+    <div class="alert alert-success">
+        <strong>New invite link generated!</strong><br>
+        Share this URL with your applicant:
+        <div style="margin-top:8px;padding:8px 12px;background:var(--surface2);border-radius:4px;font-family:monospace;font-size:13px;word-break:break-all;">
+            {{ new_invite_url }}
+        </div>
+        <div style="margin-top:6px;font-size:12px;color:var(--text-dim);">This link expires in 72 hours and is single-use.</div>
+    </div>
+    {% endif %}
+
+    <div class="card" style="padding:0;overflow:hidden;">
+        {% if invites %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Token</th>
+                    <th>Note</th>
+                    <th>Status</th>
+                    <th>Expires</th>
+                    <th>Created</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for inv in invites %}
+                <tr>
+                    <td style="font-family:monospace;font-size:12px;">{{ inv.token[:16] }}...</td>
+                    <td>{{ inv.note or '—' }}</td>
+                    <td>
+                        {% if inv.is_used %}
+                        <span class="badge badge-green">Used</span>
+                        {% elif inv.expires_at < now %}
+                        <span class="badge badge-red">Expired</span>
+                        {% else %}
+                        <span class="badge badge-yellow">Active</span>
+                        {% endif %}
+                    </td>
+                    <td style="font-size:12px;color:var(--text-dim);">
+                        {{ inv.expires_at.strftime('%Y-%m-%d %H:%M') if inv.expires_at else '—' }}
+                    </td>
+                    <td style="font-size:12px;color:var(--text-dim);">
+                        {{ inv.created_at.strftime('%Y-%m-%d %H:%M') if inv.created_at else '—' }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div style="padding:32px;text-align:center;color:var(--text-dim);">
+            No invite links yet. Click "New Invite Link" to generate one.
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- New invite form (inline) -->
+    <div class="card" style="margin-top:16px;">
+        <div class="card-title">Generate New Invite Link</div>
+        <form method="post" action="/invites/new" style="display:flex;gap:12px;align-items:flex-end;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="form-group" style="flex:1;margin-bottom:0;">
+                <label>Note (optional — e.g. applicant's name)</label>
+                <input type="text" name="note" placeholder="e.g. Applicant from Reddit" maxlength="200">
+            </div>
+            <button type="submit" class="btn btn-primary">Generate</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
