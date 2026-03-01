@@ -548,6 +548,25 @@ async def invites_new_get(request: Request, db: Session = Depends(get_db)):
     })
 
 
+@app.post("/invites/{invite_id}/delete")
+async def delete_invite(
+    request: Request,
+    invite_id: int,
+    csrf_token: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    _require_recruiter(request)
+    if not _csrf_ok(request, csrf_token):
+        raise HTTPException(403)
+    invite = db.query(InviteLink).filter_by(id=invite_id).first()
+    if not invite:
+        raise HTTPException(404)
+    db.delete(invite)
+    db.commit()
+    request.session["flash_success"] = "Invite link deleted."
+    return RedirectResponse("/invites", status_code=303)
+
+
 @app.post("/invites/new")
 async def create_invite(
     request: Request,

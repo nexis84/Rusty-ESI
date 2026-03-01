@@ -28,6 +28,7 @@
                     <th>Status</th>
                     <th>Expires</th>
                     <th>Created</th>
+                    <th></th>
                 </tr>
             </thead>
             <tbody>
@@ -49,6 +50,12 @@
                     </td>
                     <td style="font-size:12px;color:var(--text-dim);">
                         {{ inv.created_at.strftime('%Y-%m-%d %H:%M') if inv.created_at else '—' }}
+                    </td>
+                    <td>
+                        <form method="post" action="/invites/{{ inv.id }}/delete" style="display:inline;" onsubmit="return confirm('Delete this invite link?')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button type="submit" class="btn" style="padding:4px 10px;font-size:12px;background:var(--danger);color:#fff;border:none;cursor:pointer;">✕</button>
+                        </form>
                     </td>
                 </tr>
                 {% endfor %}
