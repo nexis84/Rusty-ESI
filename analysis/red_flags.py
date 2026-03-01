@@ -80,12 +80,14 @@ def check_corp_history(
     for entry in history:
         corp_id = entry.get("corporation_id")
         if corp_id in hostile_ids:
-            name = watchlist_names.get(corp_id, f"Corp #{corp_id}")
+            name = entry.get("corp_name") or watchlist_names.get(corp_id, f"Corp #{corp_id}")
             start = entry.get("start_date", "unknown")
+            if isinstance(start, str) and len(start) >= 10:
+                start = start[:10]
             flags.append(RedFlag(
                 "Corp History", "critical",
                 f"Previous member of hostile corp: {name}",
-                f"This character was a member of {name} (ID: {corp_id}) starting {start}. "
+                f"This character was a member of {name} starting {start}. "
                 "This corporation is on the hostile watchlist.",
             ))
 
@@ -94,12 +96,14 @@ def check_corp_history(
         start = _parse_dt(history[i + 1].get("start_date", ""))
         end = _parse_dt(history[i].get("start_date", ""))
         days = (end - start).days
-        corp_id = history[i + 1].get("corporation_id")
+        entry = history[i + 1]
+        corp_id = entry.get("corporation_id")
+        corp_label = entry.get("corp_name") or f"Corp #{corp_id}"
         if 0 < days < 7 and corp_id != 1000006:  # Exclude Scope (NPC corp)
             flags.append(RedFlag(
                 "Corp History", "warning",
                 f"Very short corp tenure (<7 days)",
-                f"Spent only {days} day(s) in corp ID {corp_id}. "
+                f"Spent only {days} day(s) in {corp_label}. "
                 "Short stints may indicate failed infiltration attempts.",
             ))
             break  # Only flag once
@@ -121,11 +125,14 @@ def check_contacts(contacts: list, hostile_ids: set[int]) -> list[RedFlag]:
         if c.get("contact_id") in hostile_ids and c.get("standing", 0) >= 5.0
     ]
     if high_standing_hostiles:
-        ids = ", ".join(str(c["contact_id"]) for c in high_standing_hostiles)
+        names = ", ".join(
+            watchlist_names.get(c["contact_id"]) or str(c["contact_id"])
+            for c in high_standing_hostiles
+        )
         flags.append(RedFlag(
             "Contacts", "critical",
             f"High standings toward {len(high_standing_hostiles)} hostile entity(s)",
-            f"Contact IDs with hostile standing ≥5.0: {ids}. "
+            f"Contacts with hostile standing ≥5.0: {names}. "
             "Maintaining high standings toward known enemies is a strong spy indicator.",
         ))
 
@@ -305,7 +312,7 @@ def check_mail(mail_headers: list, hostile_ids: set[int], watchlist_names: dict[
     if hostile_contacts:
         total_mails = sum(hostile_contacts.values())
         names = ", ".join(
-            watchlist_names.get(eid, f"ID {eid}")
+            watchlist_names.get(eid) or f"Entity #{eid}"
             for eid in list(hostile_contacts)[:5]
         )
         severity = "critical" if total_mails >= 5 else "warning"
