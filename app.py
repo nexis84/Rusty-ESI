@@ -52,8 +52,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="ESI Checker", docs_url=None, redoc_url=None, lifespan=lifespan)
 
-# Render sets the RENDER env var automatically; use it to enable production hardening
-_on_render = os.environ.get("RENDER", "") != ""
+# Detect production environments (Render sets RENDER, HF Spaces sets SPACE_ID)
+_on_render = os.environ.get("RENDER", "") != "" or os.environ.get("SPACE_ID", "") != ""
 
 app.add_middleware(
     SessionMiddleware,

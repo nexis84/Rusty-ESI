@@ -1,3 +1,13 @@
+---
+title: Rusty ESI Checker
+emoji: 🔍
+colorFrom: blue
+colorTo: green
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # ESI Checker — EVE Online Recruitment Platform
 
 A self-hosted corporation recruitment tool for EVE Online. Applicants
