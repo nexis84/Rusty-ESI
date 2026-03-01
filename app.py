@@ -400,11 +400,33 @@ async def review_application(
     from analysis.red_flags import RedFlag
     flags = [RedFlag(**f) for f in flags_raw]
 
+    # Classify skills into PVP / Industry / Support buckets
+    from utils.skills_profile import classify_skills
+    skills_list = []
+    if isinstance(esi_data, dict):
+        skills_raw = esi_data.get("skills") or {}
+        if isinstance(skills_raw, dict):
+            skills_list = skills_raw.get("skills", []) or []
+    skill_profile = await classify_skills(skills_list, settings.esi_base_url)
+
+    # Resolve ship type name for the current ship
+    if isinstance(esi_data, dict):
+        ship = esi_data.get("ship") or {}
+        if isinstance(ship, dict) and ship.get("ship_type_id") and not ship.get("error"):
+            try:
+                ship_type = await EsiClient.public_get(
+                    f"/universe/types/{ship['ship_type_id']}/"
+                )
+                ship["ship_type_name"] = ship_type.get("name", "Unknown")
+            except Exception:
+                ship["ship_type_name"] = "Unknown"
+
     return _render(request, "review.html", {
         "app": app_rec,
         "esi": esi_data,
         "flags": flags,
         "breakdown": breakdown,
+        "skill_profile": skill_profile,
     })
 
 

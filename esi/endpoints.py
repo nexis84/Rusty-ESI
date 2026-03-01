@@ -114,6 +114,11 @@ async def get_mail_headers(
     )
 
 
+async def get_ship_type(client: EsiClient, character_id: int) -> dict:
+    """Currently boarded ship — type ID, item ID, and custom name."""
+    return await client.get(f"/characters/{character_id}/ship/")
+
+
 async def get_system_public(system_id: int) -> dict:
     """Solar system name and security status."""
     return await EsiClient.public_get(f"/universe/systems/{system_id}/")
@@ -171,6 +176,7 @@ async def fetch_all_applicant_data(
         safe(get_killmails(client, character_id), "killmails"),
         safe(get_location(client, character_id), "location"),
         safe(get_mail_headers(client, character_id), "mail_headers"),
+        safe(get_ship_type(client, character_id), "ship"),
     ]
 
     results = await asyncio.gather(*tasks)

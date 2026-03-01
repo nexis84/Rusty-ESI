@@ -92,6 +92,88 @@
                 </div>
             </div>
 
+            <!-- Character Profile (Skills) -->
+            {% if skill_profile %}
+            <div class="card">
+                <div class="card-title">Character Profile</div>
+
+                <!-- Role badges -->
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+                    {% set primary = skill_profile.primary_role %}
+                    <span style="padding:4px 14px;border-radius:12px;font-size:12px;font-weight:600;
+                        {% if 'PVP' in primary %}background:rgba(231,76,60,0.18);color:#e74c3c;border:1px solid rgba(231,76,60,0.4)
+                        {% elif 'Industry' in primary %}background:rgba(52,152,219,0.18);color:#5dade2;border:1px solid rgba(52,152,219,0.4)
+                        {% else %}background:rgba(46,204,113,0.18);color:#2ecc71;border:1px solid rgba(46,204,113,0.4){% endif %};">
+                        {% if 'PVP' in primary %}⚔{% elif 'Industry' in primary %}🏭{% else %}🛡{% endif %} {{ primary }}
+                    </span>
+                    {% for role in skill_profile.secondary_roles %}
+                    <span style="padding:4px 14px;border-radius:12px;font-size:12px;font-weight:500;
+                        {% if 'PVP' in role %}background:rgba(231,76,60,0.10);color:#e88;border:1px solid rgba(231,76,60,0.25)
+                        {% elif 'Industry' in role %}background:rgba(52,152,219,0.10);color:#8be;border:1px solid rgba(52,152,219,0.25)
+                        {% else %}background:rgba(46,204,113,0.10);color:#7ec;border:1px solid rgba(46,204,113,0.25){% endif %};">
+                        {% if 'PVP' in role %}⚔{% elif 'Industry' in role %}🏭{% else %}🛡{% endif %} {{ role }}
+                    </span>
+                    {% endfor %}
+                </div>
+
+                <!-- SP breakdown bars -->
+                <div style="margin-bottom:14px;">
+                    <div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-dim);margin-bottom:8px;">Skill Point Breakdown</div>
+
+                    <!-- PVP -->
+                    <div style="margin-bottom:8px;">
+                        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">
+                            <span>⚔ PVP</span>
+                            <span style="color:var(--text-dim);">{{ "{:,}".format(skill_profile.pvp_sp) }} &nbsp;({{ skill_profile.pvp_pct }}%)</span>
+                        </div>
+                        <div style="height:6px;background:var(--surface2);border-radius:3px;">
+                            <div style="height:6px;border-radius:3px;width:{{ skill_profile.pvp_pct }}%;background:#e74c3c;transition:width .3s;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Industry -->
+                    <div style="margin-bottom:8px;">
+                        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">
+                            <span>🏭 Industry</span>
+                            <span style="color:var(--text-dim);">{{ "{:,}".format(skill_profile.industry_sp) }} &nbsp;({{ skill_profile.industry_pct }}%)</span>
+                        </div>
+                        <div style="height:6px;background:var(--surface2);border-radius:3px;">
+                            <div style="height:6px;border-radius:3px;width:{{ skill_profile.industry_pct }}%;background:#3498db;transition:width .3s;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Support / Core -->
+                    <div>
+                        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">
+                            <span>🛡 Support / Core</span>
+                            <span style="color:var(--text-dim);">{{ "{:,}".format(skill_profile.support_sp) }} &nbsp;({{ skill_profile.support_pct }}%)</span>
+                        </div>
+                        <div style="height:6px;background:var(--surface2);border-radius:3px;">
+                            <div style="height:6px;border-radius:3px;width:{{ skill_profile.support_pct }}%;background:#2ecc71;transition:width .3s;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Current / last known ship -->
+                {% if esi.ship and not esi.ship.error %}
+                <div style="border-top:1px solid var(--border);padding-top:12px;display:flex;align-items:center;gap:12px;">
+                    {% if esi.ship.ship_type_id %}
+                    <img src="https://images.evetech.net/types/{{ esi.ship.ship_type_id }}/render?size=64"
+                         style="width:56px;height:56px;border-radius:6px;background:var(--surface2);"
+                         onerror="this.style.display='none'">
+                    {% endif %}
+                    <div>
+                        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-dim);margin-bottom:2px;">Current Ship</div>
+                        <div style="font-size:14px;font-weight:600;">{{ esi.ship.ship_type_name or 'Unknown' }}</div>
+                        {% if esi.ship.ship_name and esi.ship.ship_name != esi.ship.ship_type_name %}
+                        <div style="font-size:11px;color:var(--text-dim);margin-top:1px;">"{{ esi.ship.ship_name }}"</div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+
             <!-- Red flags -->
             <div class="card">
                 <div class="card-title">Red Flags ({{ flags | length }})</div>
