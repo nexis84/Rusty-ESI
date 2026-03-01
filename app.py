@@ -78,7 +78,7 @@ def _render(request: Request, template: str, ctx: dict = None) -> HTMLResponse:
         "flash_error": request.session.pop("flash_error", None),
         "flash_success": request.session.pop("flash_success", None),
         "csrf_token": request.session.get("csrf_token", ""),
-        "now": datetime.utcnow(),
+        "now": datetime.now(timezone.utc),
         "weights": WEIGHTS,
     }
     if ctx:
@@ -202,7 +202,7 @@ async def _handle_recruiter_callback(
         )
         db.add(recruiter)
     else:
-        recruiter.last_login = datetime.utcnow()
+        recruiter.last_login = datetime.now(timezone.utc)
         recruiter.character_name = character_name
 
     db.commit()
@@ -221,7 +221,7 @@ async def _handle_applicant_callback(
 ):
     """Store applicant tokens, trigger ESI fetch, redirect to done page."""
     invite = db.query(InviteLink).filter_by(token=invite_token).first()
-    if not invite or invite.is_used or invite.expires_at < datetime.utcnow():
+    if not invite or invite.is_used or invite.expires_at < datetime.now(timezone.utc):
         return _render(request, "application.html", {"expired": True})
 
     # Create application record
@@ -308,7 +308,7 @@ async def _fetch_and_score(application_id: int):
         app_rec.score_band = report.band
         app_rec.recommendation = report.recommendation
         app_rec.status = "scored"
-        app_rec.scored_at = datetime.utcnow()
+        app_rec.scored_at = datetime.now(timezone.utc)
         db.commit()
 
     except Exception as exc:
@@ -346,7 +346,7 @@ async def dashboard(
         query = query.filter(Application.status == status)
     applications = query.order_by(Application.submitted_at.desc()).all()
 
-    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+    thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
     stats = {
         "pending": db.query(Application).filter(Application.status.in_(["pending", "fetching", "scored"])).count(),
         "approved": db.query(Application).filter(
@@ -565,7 +565,7 @@ async def create_invite(
         token=token,
         created_by=recruiter_id,
         note=note[:200],
-        expires_at=datetime.utcnow() + timedelta(hours=72),
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=72),
     )
     db.add(invite)
     db.commit()
@@ -587,7 +587,7 @@ async def apply_page(
     db: Session = Depends(get_db),
 ):
     invite = db.query(InviteLink).filter_by(token=token).first()
-    if not invite or invite.is_used or invite.expires_at < datetime.utcnow():
+    if not invite or invite.is_used or invite.expires_at < datetime.now(timezone.utc):
         return _render(request, "application.html", {"expired": True})
 
     # Build applicant auth URL encoding the invite token in state
