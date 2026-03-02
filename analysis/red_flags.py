@@ -332,47 +332,67 @@ def check_standings(
     character_id: int,
     corp_id: int,
     alliance_id: int,
+    corp_history: list,
     standings: list[dict],
 ) -> list[RedFlag]:
     """
-    Only checks the applicant's alliance against the standings cache.
+    Check character, current corp, current alliance, and all historical corps
+    against the standings cache (populated from alliance contacts).
+
     standings: list of {entity_id, entity_type, entity_name, standing, source}
     """
     flags = []
-    if not standings or not alliance_id:
+    if not standings:
         return []
 
     lookup: dict[int, dict] = {s["entity_id"]: s for s in standings}
 
-    if alliance_id not in lookup:
+    def _flag_entity(eid: int, label: str, context: str = "") -> list[RedFlag]:
+        if not eid or eid not in lookup:
+            return []
+        s = lookup[eid]
+        standing = s["standing"]
+        name = s.get("entity_name") or f"{label} #{eid}"
+        source = s.get("source", "alliance").title()
+        detail_ctx = f" ({context})" if context else ""
+        if standing <= -10.0:
+            return [RedFlag(
+                "Standings", "critical",
+                f"{label} at -10 standing: {name}",
+                f"{source} contacts list has {name} at {standing:+.1f} standing{detail_ctx}. "
+                "A -10 standing is the strongest possible hostile designation.",
+            )]
+        elif standing <= -5.0:
+            return [RedFlag(
+                "Standings", "critical",
+                f"{label} hostile standing: {name} ({standing:+.1f})",
+                f"{source} contacts list has {name} at {standing:+.1f} standing{detail_ctx}. "
+                "Standing at -5 or below indicates a known hostile entity.",
+            )]
+        elif standing < 0:
+            return [RedFlag(
+                "Standings", "warning",
+                f"{label} negative standing: {name} ({standing:+.1f})",
+                f"{source} contacts list has {name} at {standing:+.1f} standing{detail_ctx}. "
+                "Verify whether this is significant.",
+            )]
         return []
 
-    entry = lookup[alliance_id]
-    standing = entry["standing"]
-    name = entry.get("entity_name") or f"Alliance #{alliance_id}"
-    source = entry.get("source", "corp").title()
+    # Current character, corp, alliance
+    flags += _flag_entity(character_id, "Character")
+    flags += _flag_entity(corp_id, "Corp")
+    flags += _flag_entity(alliance_id, "Alliance")
 
-    if standing <= -10.0:
-        flags.append(RedFlag(
-            "Standings", "critical",
-            f"Alliance at -10 standing: {name}",
-            f"{source} contacts list has {name} at {standing:+.1f} standing. "
-            "A -10 standing is the strongest possible hostile designation.",
-        ))
-    elif standing <= -5.0:
-        flags.append(RedFlag(
-            "Standings", "critical",
-            f"Alliance hostile standing: {name} ({standing:+.1f})",
-            f"{source} contacts list has {name} at {standing:+.1f} standing. "
-            "Standing at -5 or below indicates a known hostile entity.",
-        ))
-    elif standing < 0:
-        flags.append(RedFlag(
-            "Standings", "warning",
-            f"Alliance negative standing: {name} ({standing:+.1f})",
-            f"{source} contacts list has {name} at {standing:+.1f} standing. "
-            "Verify whether this is significant.",
-        ))
+    # All historical corps (deduplicated; skip current corp already checked)
+    seen_corp_ids = {corp_id}
+    for entry in (corp_history or []):
+        hcorp_id = entry.get("corporation_id")
+        if not hcorp_id or hcorp_id in seen_corp_ids:
+            continue
+        seen_corp_ids.add(hcorp_id)
+        start = entry.get("start_date", "")[:10]
+        corp_name = entry.get("corp_name") or f"Corp #{hcorp_id}"
+        flags += _flag_entity(hcorp_id, "Historical corp", f"{corp_name}, joined {start}")
 
     return flags
 
@@ -507,12 +527,16 @@ def run_all_checks(
         esi_data.get("skills", {}),
     )
 
-    # Standings check (from cached alliance/corp contacts)
+    # Standings check (character, corp, alliance + full corp history)
     if standings:
         char_pub = esi_data.get("character_public", {})
         char_id = char_pub.get("id") or char_pub.get("character_id", 0)
         corp_id = char_pub.get("corporation_id", 0)
         alliance_id = char_pub.get("alliance_id", 0)
-        flags += check_standings(char_id, corp_id, alliance_id, standings)
+        flags += check_standings(
+            char_id, corp_id, alliance_id,
+            esi_data.get("corp_history", []),
+            standings,
+        )
 
     return flags
