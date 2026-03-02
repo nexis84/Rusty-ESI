@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     your_alliance_id: int = Field(default=0)
 
     # Additional corps allowed recruiter access (comma-separated IDs, e.g. "123,456")
-    allowed_corp_ids: str = Field(default="")
+    allowed_corp_ids: str = Field(default="819141869")
 
     @property
     def allowed_corp_id_set(self) -> set[int]:
