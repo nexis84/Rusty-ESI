@@ -87,7 +87,12 @@ async def sync_standings(db: Session | None = None) -> str:
                 contacts.extend(alliance_contacts)
                 log.info("Fetched %d alliance contacts", len(alliance_contacts))
             except Exception as exc:
-                log.warning("Alliance contacts failed: %s", exc)
+                msg = f"Alliance contacts ESI error: {exc}"
+                log.warning(msg)
+                sa.sync_status = msg
+                sa.last_sync = datetime.now(timezone.utc)
+                db.commit()
+                return msg
 
         if not contacts:
             msg = "Sync ran but no contacts returned (check director roles/scopes)."
