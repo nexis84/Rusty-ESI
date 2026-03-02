@@ -89,7 +89,7 @@ async def sync_standings(db: Session | None = None) -> str:
             except Exception as exc:
                 msg = f"Alliance contacts ESI error: {exc}"
                 log.warning(msg)
-                sa.sync_status = msg
+                sa.sync_status = msg[:2000]  # guard against oversized messages
                 sa.last_sync = datetime.now(timezone.utc)
                 db.commit()
                 return msg

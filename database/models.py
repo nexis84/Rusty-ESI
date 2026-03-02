@@ -166,7 +166,7 @@ class ServiceAccount(Base):
     refresh_token_enc = Column(Text, nullable=False)
     token_expires_at = Column(Integer, nullable=False)
     last_sync = Column(DateTime(timezone=True), nullable=True)
-    sync_status = Column(String(200), default="never synced")
+    sync_status = Column(Text, default="never synced")
     created_at = Column(DateTime(timezone=True), default=_now)
 
 
