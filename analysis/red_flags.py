@@ -48,10 +48,17 @@ def check_corp_history(
     corp_history: list,
     hostile_ids: set[int],
     watchlist_names: dict[int, str],
+    standings: Optional[list[dict]] = None,
 ) -> list[RedFlag]:
     flags = []
     if _is_error(corp_history) or not corp_history:
         return [RedFlag("Corp History", "warning", "Corp history unavailable", "ESI did not return corp history.")]
+
+    # Build a standings lookup {entity_id: entry} for quick lookups
+    standings_lookup: dict[int, dict] = {}
+    if standings:
+        for s in standings:
+            standings_lookup[s["entity_id"]] = s
 
     # Sort by start date desc (most recent first)
     history = sorted(corp_history, key=lambda x: x.get("start_date", ""), reverse=True)
@@ -76,7 +83,7 @@ def check_corp_history(
             "Moderate corp hopping — worth asking why they left their previous corp.",
         ))
 
-    # Check for time in hostile corps/alliances
+    # Check for time in hostile corps/alliances (watchlist)
     for entry in history:
         corp_id = entry.get("corporation_id")
         if corp_id in hostile_ids:
@@ -89,6 +96,37 @@ def check_corp_history(
                 f"Previous member of hostile corp: {name}",
                 f"This character was a member of {name} starting {start}. "
                 "This corporation is on the hostile watchlist.",
+            ))
+
+    # Check corp history against standings cache
+    _standings_flagged: set[int] = set()  # avoid duplicate flags per corp
+    for entry in history:
+        corp_id = entry.get("corporation_id")
+        if not corp_id or corp_id in hostile_ids or corp_id in _standings_flagged:
+            continue
+        if corp_id not in standings_lookup:
+            continue
+        s = standings_lookup[corp_id]
+        standing = s["standing"]
+        name = s.get("entity_name") or entry.get("corp_name") or f"Corp #{corp_id}"
+        source = s.get("source", "corp").title()
+        start = entry.get("start_date", "unknown")
+        if isinstance(start, str) and len(start) >= 10:
+            start = start[:10]
+        _standings_flagged.add(corp_id)
+        if standing <= -5.0:
+            flags.append(RedFlag(
+                "Corp History", "critical",
+                f"Previously in hostile-standing corp: {name}",
+                f"{source} standings list has {name} at {standing:+.1f}. "
+                f"Character was a member starting {start}.",
+            ))
+        elif standing < 0:
+            flags.append(RedFlag(
+                "Corp History", "warning",
+                f"Previously in negative-standing corp: {name} ({standing:+.1f})",
+                f"{source} standings list has {name} at {standing:+.1f}. "
+                f"Character was a member starting {start}. May be worth confirming.",
             ))
 
     # Very short stints (under 7 days) suggest probing/spying
@@ -484,6 +522,7 @@ def run_all_checks(
         esi_data.get("corp_history", []),
         hostile_ids,
         watchlist_names,
+        standings=standings,
     )
     flags += check_contacts(esi_data.get("contacts", []), hostile_ids)
     flags += check_wallet(
