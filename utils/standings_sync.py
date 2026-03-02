@@ -103,6 +103,10 @@ async def sync_standings(db: Session | None = None) -> str:
             if eid:
                 seen[eid] = c
 
+        # Clear the entire cache before repopulating so stale entries are removed
+        db.query(StandingCache).delete()
+        db.commit()
+
         # Bulk-resolve names (1000 at a time)
         all_ids = list(seen.keys())
         name_map: dict[int, str] = {}
@@ -115,29 +119,20 @@ async def sync_standings(db: Session | None = None) -> str:
             except Exception as exc:
                 log.warning("Name resolution failed for chunk: %s", exc)
 
-        # Upsert into standings_cache
+        # Insert fresh alliance contacts into standings_cache
         upserted = 0
         for eid, c in seen.items():
             standing = c.get("standing", 0.0)
             entity_type = c.get("contact_type", "unknown")
-            source = c.get("_source", "corp")
+            source = c.get("_source", "alliance")
             name = name_map.get(eid, "")
-
-            existing = db.query(StandingCache).filter_by(entity_id=eid).first()
-            if existing:
-                existing.standing = standing
-                existing.entity_type = entity_type
-                existing.entity_name = name or existing.entity_name
-                existing.source = source
-                existing.updated_at = datetime.now(timezone.utc)
-            else:
-                db.add(StandingCache(
-                    entity_id=eid,
-                    entity_type=entity_type,
-                    entity_name=name,
-                    standing=standing,
-                    source=source,
-                ))
+            db.add(StandingCache(
+                entity_id=eid,
+                entity_type=entity_type,
+                entity_name=name,
+                standing=standing,
+                source=source,
+            ))
             upserted += 1
 
         sa.last_sync = datetime.now(timezone.utc)
