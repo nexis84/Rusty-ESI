@@ -17,7 +17,7 @@ from database.models import ServiceAccount, StandingCache
 from auth.eve_sso import decrypt_token, encrypt_token, refresh_access_token, token_expires_at
 from esi.client import EsiClient
 from esi.endpoints import (
-    get_corporation_contacts, get_alliance_contacts,
+    get_alliance_contacts,
     fetch_all_contacts_paged, resolve_ids, get_character_public,
 )
 
@@ -70,35 +70,24 @@ async def sync_standings(db: Session | None = None) -> str:
             db.commit()
 
         contacts: list[dict] = []
-        source_label = "corp"
 
         async with EsiClient(access, refresh, expires, on_token_refresh=on_refresh) as client:
-            # Try alliance contacts first (broader coverage)
-            if sa.alliance_id:
-                try:
-                    alliance_contacts = await fetch_all_contacts_paged(
-                        client, get_alliance_contacts, sa.alliance_id
-                    )
-                    for c in alliance_contacts:
-                        c["_source"] = "alliance"
-                    contacts.extend(alliance_contacts)
-                    source_label = "alliance"
-                    log.info("Fetched %d alliance contacts", len(alliance_contacts))
-                except Exception as exc:
-                    log.warning("Alliance contacts failed: %s", exc)
-
-            # Also fetch corp contacts
-            if sa.corporation_id:
-                try:
-                    corp_contacts = await fetch_all_contacts_paged(
-                        client, get_corporation_contacts, sa.corporation_id
-                    )
-                    for c in corp_contacts:
-                        c["_source"] = "corp"
-                    contacts.extend(corp_contacts)
-                    log.info("Fetched %d corp contacts", len(corp_contacts))
-                except Exception as exc:
-                    log.warning("Corp contacts failed: %s", exc)
+            if not sa.alliance_id:
+                msg = "No alliance ID on service account — cannot sync alliance contacts."
+                sa.sync_status = msg
+                sa.last_sync = datetime.now(timezone.utc)
+                db.commit()
+                return msg
+            try:
+                alliance_contacts = await fetch_all_contacts_paged(
+                    client, get_alliance_contacts, sa.alliance_id
+                )
+                for c in alliance_contacts:
+                    c["_source"] = "alliance"
+                contacts.extend(alliance_contacts)
+                log.info("Fetched %d alliance contacts", len(alliance_contacts))
+            except Exception as exc:
+                log.warning("Alliance contacts failed: %s", exc)
 
         if not contacts:
             msg = "Sync ran but no contacts returned (check director roles/scopes)."
@@ -111,10 +100,8 @@ async def sync_standings(db: Session | None = None) -> str:
         seen: dict[int, dict] = {}
         for c in contacts:
             eid = c.get("contact_id")
-            if eid and eid not in seen:
+            if eid:
                 seen[eid] = c
-            elif eid and c.get("_source") == "alliance":
-                seen[eid] = c  # alliance standing takes precedence
 
         # Bulk-resolve names (1000 at a time)
         all_ids = list(seen.keys())
