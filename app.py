@@ -7,6 +7,7 @@ or:
     uvicorn app:app --reload
 """
 import json
+import asyncio
 import os
 import secrets
 import uuid
@@ -28,7 +29,8 @@ from starlette.middleware.sessions import SessionMiddleware
 from config import settings
 from database.db import get_db, init_db
 from database.models import (
-    Application, AuditLog, InviteLink, Recruiter, WatchlistEntry,
+    Application, AuditLog, InviteLink, Recruiter, ServiceAccount,
+    StandingCache, WatchlistEntry,
 )
 from auth.eve_sso import (
     build_auth_url, decrypt_token, encrypt_token,
@@ -38,6 +40,7 @@ from esi.client import EsiClient
 from esi.endpoints import fetch_all_applicant_data
 from analysis.scorer import calculate_trust_score, WEIGHTS
 from utils.zkillboard import fetch_enriched_killmails
+from utils.standings_sync import sync_standings, standings_sync_loop
 
 
 # ---------------------------------------------------------------------------
@@ -51,9 +54,14 @@ async def lifespan(app: FastAPI):
     except Exception as exc:  # noqa: BLE001
         import traceback
         traceback.print_exc()
-        # Allow the app to start even if DB is temporarily unreachable;
-        # routes that need the DB will fail gracefully.
+    # Start hourly standings sync background task
+    task = asyncio.create_task(standings_sync_loop())
     yield
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
 
 
 app = FastAPI(title="ESI Checker", docs_url=None, redoc_url=None, lifespan=lifespan)
@@ -183,6 +191,11 @@ async def auth_callback(
             request, db, character_id, character_name,
             access_token, refresh_token, expires_at,
         )
+    elif role == "service_account":
+        return await _handle_service_account_callback(
+            request, db, character_id, character_name,
+            access_token, refresh_token, expires_at,
+        )
     else:
         # Applicant callback — state encodes the invite token
         invite_token = state.split(":", 1)[1] if ":" in state else ""
@@ -234,6 +247,52 @@ async def _handle_recruiter_callback(
     request.session["csrf_token"] = secrets.token_hex(32)
 
     return RedirectResponse("/dashboard")
+
+
+async def _handle_service_account_callback(
+    request, db, character_id, character_name,
+    access_token, refresh_token, expires_at,
+):
+    """Register or update the director service account used for standings sync."""
+    from esi.endpoints import get_character_public
+    try:
+        pub = await get_character_public(character_id)
+        corp_id = pub.get("corporation_id", 0)
+        alliance_id = pub.get("alliance_id")
+    except Exception:
+        corp_id = 0
+        alliance_id = None
+
+    sa = db.query(ServiceAccount).filter_by(character_id=character_id).first()
+    if sa:
+        sa.character_name = character_name
+        sa.corporation_id = corp_id
+        sa.alliance_id = alliance_id
+        sa.access_token_enc = encrypt_token(access_token)
+        sa.refresh_token_enc = encrypt_token(refresh_token)
+        sa.token_expires_at = expires_at
+        sa.sync_status = "registered — not yet synced"
+    else:
+        # Remove any previous service account first (only one allowed)
+        db.query(ServiceAccount).delete()
+        sa = ServiceAccount(
+            character_id=character_id,
+            character_name=character_name,
+            corporation_id=corp_id,
+            alliance_id=alliance_id,
+            access_token_enc=encrypt_token(access_token),
+            refresh_token_enc=encrypt_token(refresh_token),
+            token_expires_at=expires_at,
+            sync_status="registered — not yet synced",
+        )
+        db.add(sa)
+    db.commit()
+
+    request.session["flash_success"] = (
+        f"Service account registered: {character_name}. "
+        "Click 'Sync Now' to load standings."
+    )
+    return RedirectResponse("/admin/service-account", status_code=303)
 
 
 async def _handle_applicant_callback(
@@ -309,15 +368,28 @@ async def _fetch_and_score(application_id: int):
         hostile_ids = {w.entity_id for w in watchlist}
         watchlist_names = {w.entity_id: w.entity_name for w in watchlist}
 
+        # Load standings cache
+        standings = [
+            {
+                "entity_id": s.entity_id,
+                "entity_type": s.entity_type,
+                "entity_name": s.entity_name,
+                "standing": s.standing,
+                "source": s.source,
+            }
+            for s in db.query(StandingCache).all()
+        ]
+
         # Run analysis
         report = calculate_trust_score(
             esi_data=esi_data,
             hostile_ids=hostile_ids,
             watchlist_names=watchlist_names,
-            hostile_system_ids=set(),       # Can be populated from a config file
-            hostile_structure_ids=set(),    # Can be populated from a config file
-            corp_member_ids=set(),          # Can be populated from ESI corp roster
+            hostile_system_ids=set(),
+            hostile_structure_ids=set(),
+            corp_member_ids=set(),
             zkb_data=zkb_data,
+            standings=standings,
         )
 
         # Persist results
@@ -788,6 +860,62 @@ async def audit_log(request: Request, db: Session = Depends(get_db)):
 async def logout(request: Request):
     request.session.clear()
     return RedirectResponse("/login")
+
+
+# ---------------------------------------------------------------------------
+# Admin — service account & standings management
+# ---------------------------------------------------------------------------
+
+@app.get("/admin/service-account", response_class=HTMLResponse)
+async def service_account_page(request: Request, db: Session = Depends(get_db)):
+    _require_recruiter(request)
+    sa = db.query(ServiceAccount).first()
+    cache_count = db.query(StandingCache).count()
+    negative_count = db.query(StandingCache).filter(StandingCache.standing < 0).count()
+    return _render(request, "admin_service_account.html", {
+        "sa": sa,
+        "cache_count": cache_count,
+        "negative_count": negative_count,
+    })
+
+
+@app.get("/admin/service-account/register")
+async def service_account_register(request: Request):
+    """Kick off OAuth for the service account with director scopes."""
+    _require_recruiter(request)
+    url, state = build_auth_url("service_account")
+    request.session["oauth_state"] = state
+    request.session["oauth_role"] = "service_account"
+    return RedirectResponse(url)
+
+
+@app.post("/admin/service-account/sync")
+async def service_account_sync(
+    request: Request,
+    csrf_token: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    _require_recruiter(request)
+    if not _csrf_ok(request, csrf_token):
+        raise HTTPException(403)
+    result = await sync_standings(db)
+    request.session["flash_success"] = f"Sync complete: {result}"
+    return RedirectResponse("/admin/service-account", status_code=303)
+
+
+@app.post("/admin/service-account/delete")
+async def service_account_delete(
+    request: Request,
+    csrf_token: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    _require_recruiter(request)
+    if not _csrf_ok(request, csrf_token):
+        raise HTTPException(403)
+    db.query(ServiceAccount).delete()
+    db.commit()
+    request.session["flash_success"] = "Service account removed."
+    return RedirectResponse("/admin/service-account", status_code=303)
 
 
 # ---------------------------------------------------------------------------

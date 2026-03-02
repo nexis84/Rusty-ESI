@@ -119,6 +119,50 @@ async def get_ship_type(client: EsiClient, character_id: int) -> dict:
     return await client.get(f"/characters/{character_id}/ship/")
 
 
+async def get_corporation_contacts(client: EsiClient, corporation_id: int, page: int = 1) -> list:
+    """
+    Corporation contact list with standings (requires director role +
+    esi-corporations.read_contacts.v1).
+    Returns [{contact_id, contact_type, standing}]
+    """
+    return await client.get(
+        f"/corporations/{corporation_id}/contacts/",
+        params={"page": page},
+    )
+
+
+async def get_alliance_contacts(client: EsiClient, alliance_id: int, page: int = 1) -> list:
+    """
+    Alliance contact list with standings (requires executor director role +
+    esi-alliances.read_contacts.v1).
+    Returns [{contact_id, contact_type, standing}]
+    """
+    return await client.get(
+        f"/alliances/{alliance_id}/contacts/",
+        params={"page": page},
+    )
+
+
+async def fetch_all_contacts_paged(
+    client: EsiClient,
+    fetch_fn,
+    entity_id: int,
+) -> list:
+    """Fetch all pages of contacts for a corp or alliance."""
+    import asyncio
+    page = 1
+    all_contacts = []
+    while True:
+        page_data = await fetch_fn(client, entity_id, page=page)
+        if not isinstance(page_data, list) or not page_data:
+            break
+        all_contacts.extend(page_data)
+        if len(page_data) < 1000:
+            break
+        page += 1
+    return all_contacts
+
+
 async def get_system_public(system_id: int) -> dict:
     """Solar system name and security status."""
     return await EsiClient.public_get(f"/universe/systems/{system_id}/")

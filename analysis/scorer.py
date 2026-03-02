@@ -142,6 +142,7 @@ def calculate_trust_score(
     hostile_structure_ids: set[int],
     corp_member_ids: set[int],
     zkb_data: Optional[list] = None,
+    standings: Optional[list] = None,
 ) -> TrustReport:
     """
     Run all checks and produce a TrustReport.
@@ -158,6 +159,7 @@ def calculate_trust_score(
         hostile_structure_ids=hostile_structure_ids,
         corp_member_ids=corp_member_ids,
         zkb_data=zkb_data,
+        standings=standings,
     )
 
     breakdown = {

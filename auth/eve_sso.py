@@ -71,7 +71,9 @@ def build_auth_url(
         state_data = f"{state_data}:{extra_state}"
 
     scopes = (
-        settings.recruiter_scopes
+        settings.service_account_scopes
+        if role == "service_account"
+        else settings.recruiter_scopes
         if role == "recruiter"
         else settings.applicant_scopes
     )

@@ -138,6 +138,39 @@ class WatchlistEntry(Base):
 
 
 # ---------------------------------------------------------------------------
+# Alliance / corp standings cache (synced from a director service account)
+# ---------------------------------------------------------------------------
+
+class StandingCache(Base):
+    __tablename__ = "standings_cache"
+
+    id = Column(Integer, primary_key=True, index=True)
+    entity_id = Column(Integer, unique=True, nullable=False, index=True)
+    entity_type = Column(String(20), nullable=False)   # "character"|"corporation"|"alliance"
+    entity_name = Column(String(100), nullable=True)
+    standing = Column(Float, nullable=False)           # -10.0 .. +10.0
+    source = Column(String(20), default="corp")        # "corp" | "alliance"
+    updated_at = Column(DateTime(timezone=True), default=_now)
+
+
+class ServiceAccount(Base):
+    """A director-level character whose token is used to sync standings."""
+    __tablename__ = "service_accounts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    character_id = Column(Integer, unique=True, nullable=False)
+    character_name = Column(String(100), nullable=False)
+    corporation_id = Column(Integer, nullable=True)
+    alliance_id = Column(Integer, nullable=True)
+    access_token_enc = Column(Text, nullable=False)
+    refresh_token_enc = Column(Text, nullable=False)
+    token_expires_at = Column(Integer, nullable=False)
+    last_sync = Column(DateTime(timezone=True), nullable=True)
+    sync_status = Column(String(200), default="never synced")
+    created_at = Column(DateTime(timezone=True), default=_now)
+
+
+# ---------------------------------------------------------------------------
 # Audit log
 # ---------------------------------------------------------------------------
 

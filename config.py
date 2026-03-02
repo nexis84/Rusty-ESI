@@ -72,5 +72,12 @@ class Settings(BaseSettings):
     # Corp history is a public ESI endpoint and needs no scope
     recruiter_scopes: str = "publicData"
 
+    # Service account scopes (director-level character for standings sync)
+    service_account_scopes: str = (
+        "publicData "
+        "esi-corporations.read_contacts.v1 "
+        "esi-alliances.read_contacts.v1"
+    )
+
 
 settings = Settings()

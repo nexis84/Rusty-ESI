@@ -125,10 +125,7 @@ def check_contacts(contacts: list, hostile_ids: set[int]) -> list[RedFlag]:
         if c.get("contact_id") in hostile_ids and c.get("standing", 0) >= 5.0
     ]
     if high_standing_hostiles:
-        names = ", ".join(
-            watchlist_names.get(c["contact_id"]) or str(c["contact_id"])
-            for c in high_standing_hostiles
-        )
+        names = ", ".join(str(c["contact_id"]) for c in high_standing_hostiles)
         flags.append(RedFlag(
             "Contacts", "critical",
             f"High standings toward {len(high_standing_hostiles)} hostile entity(s)",
@@ -327,6 +324,63 @@ def check_mail(mail_headers: list, hostile_ids: set[int], watchlist_names: dict[
 
 
 # ---------------------------------------------------------------------------
+# Rule: Standing — character/corp/alliance flagged negative in standings cache
+# ---------------------------------------------------------------------------
+
+def check_standings(
+    character_id: int,
+    corp_id: int,
+    alliance_id: int,
+    standings: list[dict],
+) -> list[RedFlag]:
+    """
+    standings: list of {entity_id, entity_type, entity_name, standing, source}
+    fetched from StandingCache table.
+    """
+    flags = []
+    if not standings:
+        return []
+
+    lookup: dict[int, dict] = {s["entity_id"]: s for s in standings}
+
+    for eid, label in [
+        (character_id, "character"),
+        (corp_id, "corporation"),
+        (alliance_id, "alliance"),
+    ]:
+        if not eid or eid not in lookup:
+            continue
+        entry = lookup[eid]
+        standing = entry["standing"]
+        name = entry.get("entity_name") or f"{label.title()} #{eid}"
+        source = entry.get("source", "corp").title()
+
+        if standing <= -10.0:
+            flags.append(RedFlag(
+                "Standings", "critical",
+                f"{label.title()} at -10 standing: {name}",
+                f"{source} contacts list has {name} at {standing:+.1f} standing. "
+                "A -10 standing is the strongest possible hostile designation.",
+            ))
+        elif standing <= -5.0:
+            flags.append(RedFlag(
+                "Standings", "critical",
+                f"{label.title()} hostile standing: {name} ({standing:+.1f})",
+                f"{source} contacts list has {name} at {standing:+.1f} standing. "
+                "Standing at -5 or below indicates a known hostile entity.",
+            ))
+        elif standing < 0:
+            flags.append(RedFlag(
+                "Standings", "warning",
+                f"{label.title()} negative standing: {name} ({standing:+.1f})",
+                f"{source} contacts list has {name} at {standing:+.1f} standing. "
+                "Verify whether this is significant.",
+            ))
+
+    return flags
+
+
+# ---------------------------------------------------------------------------
 # Rule: Big losses on zKillboard (deliberate self-loss / ISK transfer)
 # ---------------------------------------------------------------------------
 
@@ -421,6 +475,7 @@ def run_all_checks(
     hostile_structure_ids: set[int],
     corp_member_ids: set[int],
     zkb_data: Optional[list] = None,
+    standings: Optional[list[dict]] = None,
 ) -> list[RedFlag]:
     """Run every red flag check and return the combined list."""
     flags: list[RedFlag] = []
@@ -453,5 +508,13 @@ def run_all_checks(
         esi_data.get("character_public", {}),
         esi_data.get("skills", {}),
     )
+
+    # Standings check (from cached alliance/corp contacts)
+    if standings:
+        char_pub = esi_data.get("character_public", {})
+        char_id = char_pub.get("id") or char_pub.get("character_id", 0)
+        corp_id = char_pub.get("corporation_id", 0)
+        alliance_id = char_pub.get("alliance_id", 0)
+        flags += check_standings(char_id, corp_id, alliance_id, standings)
 
     return flags
