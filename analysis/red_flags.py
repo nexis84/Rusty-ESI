@@ -54,12 +54,6 @@ def check_corp_history(
     if _is_error(corp_history) or not corp_history:
         return [RedFlag("Corp History", "warning", "Corp history unavailable", "ESI did not return corp history.")]
 
-    # Build a standings lookup {entity_id: entry} for quick lookups
-    standings_lookup: dict[int, dict] = {}
-    if standings:
-        for s in standings:
-            standings_lookup[s["entity_id"]] = s
-
     # Sort by start date desc (most recent first)
     history = sorted(corp_history, key=lambda x: x.get("start_date", ""), reverse=True)
 
@@ -96,37 +90,6 @@ def check_corp_history(
                 f"Previous member of hostile corp: {name}",
                 f"This character was a member of {name} starting {start}. "
                 "This corporation is on the hostile watchlist.",
-            ))
-
-    # Check corp history against standings cache
-    _standings_flagged: set[int] = set()  # avoid duplicate flags per corp
-    for entry in history:
-        corp_id = entry.get("corporation_id")
-        if not corp_id or corp_id in hostile_ids or corp_id in _standings_flagged:
-            continue
-        if corp_id not in standings_lookup:
-            continue
-        s = standings_lookup[corp_id]
-        standing = s["standing"]
-        name = s.get("entity_name") or entry.get("corp_name") or f"Corp #{corp_id}"
-        source = s.get("source", "corp").title()
-        start = entry.get("start_date", "unknown")
-        if isinstance(start, str) and len(start) >= 10:
-            start = start[:10]
-        _standings_flagged.add(corp_id)
-        if standing <= -5.0:
-            flags.append(RedFlag(
-                "Corp History", "critical",
-                f"Previously in hostile-standing corp: {name}",
-                f"{source} standings list has {name} at {standing:+.1f}. "
-                f"Character was a member starting {start}.",
-            ))
-        elif standing < 0:
-            flags.append(RedFlag(
-                "Corp History", "warning",
-                f"Previously in negative-standing corp: {name} ({standing:+.1f})",
-                f"{source} standings list has {name} at {standing:+.1f}. "
-                f"Character was a member starting {start}. May be worth confirming.",
             ))
 
     # Very short stints (under 7 days) suggest probing/spying
@@ -372,48 +335,44 @@ def check_standings(
     standings: list[dict],
 ) -> list[RedFlag]:
     """
+    Only checks the applicant's alliance against the standings cache.
     standings: list of {entity_id, entity_type, entity_name, standing, source}
-    fetched from StandingCache table.
     """
     flags = []
-    if not standings:
+    if not standings or not alliance_id:
         return []
 
     lookup: dict[int, dict] = {s["entity_id"]: s for s in standings}
 
-    for eid, label in [
-        (character_id, "character"),
-        (corp_id, "corporation"),
-        (alliance_id, "alliance"),
-    ]:
-        if not eid or eid not in lookup:
-            continue
-        entry = lookup[eid]
-        standing = entry["standing"]
-        name = entry.get("entity_name") or f"{label.title()} #{eid}"
-        source = entry.get("source", "corp").title()
+    if alliance_id not in lookup:
+        return []
 
-        if standing <= -10.0:
-            flags.append(RedFlag(
-                "Standings", "critical",
-                f"{label.title()} at -10 standing: {name}",
-                f"{source} contacts list has {name} at {standing:+.1f} standing. "
-                "A -10 standing is the strongest possible hostile designation.",
-            ))
-        elif standing <= -5.0:
-            flags.append(RedFlag(
-                "Standings", "critical",
-                f"{label.title()} hostile standing: {name} ({standing:+.1f})",
-                f"{source} contacts list has {name} at {standing:+.1f} standing. "
-                "Standing at -5 or below indicates a known hostile entity.",
-            ))
-        elif standing < 0:
-            flags.append(RedFlag(
-                "Standings", "warning",
-                f"{label.title()} negative standing: {name} ({standing:+.1f})",
-                f"{source} contacts list has {name} at {standing:+.1f} standing. "
-                "Verify whether this is significant.",
-            ))
+    entry = lookup[alliance_id]
+    standing = entry["standing"]
+    name = entry.get("entity_name") or f"Alliance #{alliance_id}"
+    source = entry.get("source", "corp").title()
+
+    if standing <= -10.0:
+        flags.append(RedFlag(
+            "Standings", "critical",
+            f"Alliance at -10 standing: {name}",
+            f"{source} contacts list has {name} at {standing:+.1f} standing. "
+            "A -10 standing is the strongest possible hostile designation.",
+        ))
+    elif standing <= -5.0:
+        flags.append(RedFlag(
+            "Standings", "critical",
+            f"Alliance hostile standing: {name} ({standing:+.1f})",
+            f"{source} contacts list has {name} at {standing:+.1f} standing. "
+            "Standing at -5 or below indicates a known hostile entity.",
+        ))
+    elif standing < 0:
+        flags.append(RedFlag(
+            "Standings", "warning",
+            f"Alliance negative standing: {name} ({standing:+.1f})",
+            f"{source} contacts list has {name} at {standing:+.1f} standing. "
+            "Verify whether this is significant.",
+        ))
 
     return flags
 
