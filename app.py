@@ -104,10 +104,6 @@ def _csrf_ok(request: Request, token: str) -> bool:
 # Root redirect
 # ---------------------------------------------------------------------------
 
-@app.get("/")
-async def root():
-    return RedirectResponse("/login")
-
 
 # ---------------------------------------------------------------------------
 # Auth routes
