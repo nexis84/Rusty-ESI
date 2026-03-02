@@ -46,7 +46,13 @@ from utils.zkillboard import fetch_enriched_killmails
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db()
+    try:
+        init_db()
+    except Exception as exc:  # noqa: BLE001
+        import traceback
+        traceback.print_exc()
+        # Allow the app to start even if DB is temporarily unreachable;
+        # routes that need the DB will fail gracefully.
     yield
 
 
@@ -98,6 +104,15 @@ def _csrf_ok(request: Request, token: str) -> bool:
     return secrets.compare_digest(
         request.session.get("csrf_token", ""), token or ""
     )
+
+
+# ---------------------------------------------------------------------------
+# Health check (no dependencies — used to verify the container is live)
+# ---------------------------------------------------------------------------
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
 
 
 # ---------------------------------------------------------------------------
@@ -190,10 +205,11 @@ async def _handle_recruiter_callback(
     except Exception:
         corp_id = 0
 
-    if settings.your_corp_id != 0 and corp_id != settings.your_corp_id:
+    allowed = settings.allowed_corp_id_set
+    if allowed and corp_id not in allowed:
         request.session["flash_error"] = (
-            f"Character '{character_name}' is not in the configured corporation. "
-            "Only corp members can access this tool."
+            f"Character '{character_name}' is not in an authorised corporation. "
+            "Only members of allowed corps can access this tool."
         )
         return RedirectResponse("/login")
 

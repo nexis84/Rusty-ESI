@@ -25,9 +25,24 @@ class Settings(BaseSettings):
     app_port: int = Field(default=8000)
     debug: bool = Field(default=True)
 
-    # Your corporation
+    # Your corporation (primary)
     your_corp_id: int = Field(default=0)
     your_alliance_id: int = Field(default=0)
+
+    # Additional corps allowed recruiter access (comma-separated IDs, e.g. "123,456")
+    allowed_corp_ids: str = Field(default="")
+
+    @property
+    def allowed_corp_id_set(self) -> set[int]:
+        """Returns the full set of corp IDs permitted recruiter login."""
+        ids: set[int] = set()
+        if self.your_corp_id != 0:
+            ids.add(self.your_corp_id)
+        for part in self.allowed_corp_ids.split(","):
+            part = part.strip()
+            if part.isdigit():
+                ids.add(int(part))
+        return ids
 
     # Database
     database_url: str = Field(default="sqlite:///./esi_checker.db")
