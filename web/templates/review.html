@@ -95,11 +95,11 @@
             <div class="card">
                 <div class="card-title">Trust Score</div>
                 <div style="display:flex;align-items:center;gap:24px;">
-                    <div class="score-circle {{ app.score_band or 'yellow' }}">
+                    <div id="trust-score-circle" class="score-circle {{ app.score_band or 'yellow' }}">
                         {{ app.trust_score if app.trust_score is not none else '?' }}
                     </div>
                     <div style="flex:1;">
-                        <div style="font-weight:600;font-size:15px;margin-bottom:6px;">
+                        <div id="trust-recommendation" style="font-weight:600;font-size:15px;margin-bottom:6px;">
                             {{ app.recommendation or 'Analysis in progress...' }}
                         </div>
                         {% if breakdown %}
@@ -108,10 +108,10 @@
                         <div style="margin-bottom:4px;">
                             <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-dim);margin-bottom:2px;">
                                 <span>{{ key | replace('_',' ') | title }}</span>
-                                <span>{{ val }}/{{ max_val }}</span>
+                                <span id="breakdown-label-{{ key }}">{{ val }}/{{ max_val }}</span>
                             </div>
                             <div style="height:4px;background:var(--surface2);border-radius:2px;">
-                                <div style="height:4px;border-radius:2px;width:{{ (val/max_val*100)|int }}%;
+                                <div id="breakdown-bar-{{ key }}" style="height:4px;border-radius:2px;width:{{ (val/max_val*100)|int }}%;
                                     background:{% if val == max_val %}var(--green){% elif val > max_val*0.5 %}var(--yellow){% else %}var(--red){% endif %};">
                                 </div>
                             </div>
@@ -244,21 +244,38 @@
 
             <!-- Red flags -->
             <div class="card">
-                <div class="card-title">Red Flags ({{ flags | length }})</div>
+                {% set ns = namespace(active=0) %}
+                {% for f in flags %}{% if not f.dismissed %}{% set ns.active = ns.active + 1 %}{% endif %}{% endfor %}
+                <div class="card-title">
+                    Red Flags
+                    <span id="flags-count-label" style="font-weight:400;font-size:13px;color:var(--text-dim);">{% if flags %}({{ ns.active }} active{% if flags | length > ns.active %}, {{ flags | length - ns.active }} accepted{% endif %}){% endif %}</span>
+                </div>
                 {% if flags %}
                 {% for flag in flags %}
-                <div style="padding:10px 0;border-bottom:1px solid var(--border);">
-                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                {% set idx = loop.index0 %}
+                <div id="flag-row-{{ idx }}" style="padding:10px 0;border-bottom:1px solid var(--border);transition:opacity .25s;{% if flag.dismissed %}opacity:0.42;{% endif %}">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;">
                         <span class="sev-{{ flag.severity }}">
                             {% if flag.severity == 'critical' %}🔴
                             {% elif flag.severity == 'warning' %}🟠
                             {% else %}🔵{% endif %}
                             {{ flag.severity | upper }}
                         </span>
-                        <span style="font-weight:500;">{{ flag.message }}</span>
+                        <span class="flag-msg-{{ idx }}" style="font-weight:500;{% if flag.dismissed %}text-decoration:line-through;color:var(--text-dim);{% endif %}">{{ flag.message }}</span>
                         <span style="font-size:11px;color:var(--text-dim);margin-left:auto;">{{ flag.category }}</span>
+                        {% if flag.dismissed %}
+                        <span id="flag-badge-{{ idx }}" style="font-size:10px;font-weight:600;color:#27ae60;background:rgba(39,174,96,0.15);border:1px solid rgba(39,174,96,0.35);border-radius:3px;padding:1px 7px;">✓ Accepted</span>
+                        <button id="flag-btn-{{ idx }}" onclick="flagAction({{ app.id }}, {{ idx }}, 'restore', '{{ csrf_token }}')" style="background:none;border:1px solid var(--border);color:var(--text-dim);font-size:10px;cursor:pointer;border-radius:3px;padding:2px 7px;">↩ Restore</button>
+                        {% else %}
+                        <button id="flag-btn-{{ idx }}" onclick="flagAction({{ app.id }}, {{ idx }}, 'dismiss', '{{ csrf_token }}')" style="background:none;border:1px solid rgba(39,174,96,0.5);color:#27ae60;font-size:10px;cursor:pointer;border-radius:3px;padding:2px 7px;">✓ Accept</button>
+                        {% endif %}
                     </div>
                     <div style="font-size:12px;color:var(--text-dim);padding-left:20px;">{{ flag.detail }}</div>
+                    {% if flag.dismissed and flag.dismissed_by %}
+                    <div style="font-size:11px;color:#27ae60;padding-left:20px;margin-top:3px;">
+                        Accepted by {{ flag.dismissed_by }}{% if flag.dismissed_note %}: &ldquo;{{ flag.dismissed_note }}&rdquo;{% endif %}
+                    </div>
+                    {% endif %}
                 </div>
                 {% endfor %}
                 {% else %}
@@ -430,4 +447,97 @@
         </div>
     </div>
 </div>
+
+<script>
+const _WEIGHTS = {{ weights | tojson }};
+
+async function flagAction(appId, idx, action, csrfToken) {
+    const btn = document.getElementById('flag-btn-' + idx);
+    if (btn) { btn.disabled = true; btn.style.opacity = '0.5'; }
+
+    let resp;
+    try {
+        resp = await fetch('/applications/' + appId + '/flags/' + idx + '/' + action, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ csrf_token: csrfToken }).toString(),
+        });
+    } catch (e) {
+        if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+        alert('Network error — please try again.');
+        return;
+    }
+    if (!resp.ok) {
+        if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+        alert('Action failed (status ' + resp.status + ').');
+        return;
+    }
+    const data = await resp.json();
+
+    // Update flag row appearance
+    const row = document.getElementById('flag-row-' + idx);
+    const msgSpan = row ? row.querySelector('.flag-msg-' + idx) : null;
+    if (action === 'dismiss') {
+        if (row) row.style.opacity = '0.42';
+        if (msgSpan) { msgSpan.style.textDecoration = 'line-through'; msgSpan.style.color = 'var(--text-dim)'; }
+        // Insert accepted badge before the button
+        if (btn && !document.getElementById('flag-badge-' + idx)) {
+            const badge = document.createElement('span');
+            badge.id = 'flag-badge-' + idx;
+            badge.style.cssText = 'font-size:10px;font-weight:600;color:#27ae60;background:rgba(39,174,96,0.15);border:1px solid rgba(39,174,96,0.35);border-radius:3px;padding:1px 7px;';
+            badge.textContent = '\u2713 Accepted';
+            btn.before(badge);
+        }
+        if (btn) {
+            btn.textContent = '\u21A9 Restore';
+            btn.style.cssText = 'background:none;border:1px solid var(--border);color:var(--text-dim);font-size:10px;cursor:pointer;border-radius:3px;padding:2px 7px;';
+            btn.disabled = false;
+            btn.style.opacity = '1';
+            btn.onclick = function() { flagAction(appId, idx, 'restore', csrfToken); };
+        }
+    } else {
+        if (row) row.style.opacity = '1';
+        if (msgSpan) { msgSpan.style.textDecoration = ''; msgSpan.style.color = ''; }
+        const badge = document.getElementById('flag-badge-' + idx);
+        if (badge) badge.remove();
+        if (btn) {
+            btn.textContent = '\u2713 Accept';
+            btn.style.cssText = 'background:none;border:1px solid rgba(39,174,96,0.5);color:#27ae60;font-size:10px;cursor:pointer;border-radius:3px;padding:2px 7px;';
+            btn.disabled = false;
+            btn.style.opacity = '1';
+            btn.onclick = function() { flagAction(appId, idx, 'dismiss', csrfToken); };
+        }
+    }
+
+    // Live-update trust score circle
+    const circle = document.getElementById('trust-score-circle');
+    if (circle) {
+        circle.textContent = data.score;
+        circle.className = 'score-circle ' + data.band;
+    }
+    // Live-update recommendation text
+    const rec = document.getElementById('trust-recommendation');
+    if (rec) rec.textContent = data.recommendation;
+
+    // Live-update breakdown bars and labels
+    for (const [key, val] of Object.entries(data.breakdown)) {
+        const maxVal = _WEIGHTS[key] || 1;
+        const label = document.getElementById('breakdown-label-' + key);
+        const bar   = document.getElementById('breakdown-bar-'   + key);
+        if (label) label.textContent = val + '/' + maxVal;
+        if (bar) {
+            const pct = Math.round(val / maxVal * 100);
+            bar.style.width = pct + '%';
+            bar.style.background = (val === maxVal) ? 'var(--green)' : (val > maxVal * 0.5 ? 'var(--yellow)' : 'var(--red)');
+        }
+    }
+
+    // Live-update flags count label
+    const countLabel = document.getElementById('flags-count-label');
+    if (countLabel) {
+        const dismissed = data.total_flags - data.active_flags;
+        countLabel.textContent = '(' + data.active_flags + ' active' + (dismissed > 0 ? ', ' + dismissed + ' accepted' : '') + ')';
+    }
+}
+</script>
 {% endblock %}

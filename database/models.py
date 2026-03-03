@@ -120,6 +120,28 @@ class Application(Base):
     def set_score_breakdown(self, breakdown: dict):
         self.score_breakdown_json = json.dumps(breakdown)
 
+    def dismiss_flag(self, index: int, dismissed_by: str = "", note: str = "") -> bool:
+        """Mark a red flag as accepted/dismissed so it is excluded from scoring."""
+        flags = json.loads(self.red_flags_json) if self.red_flags_json else []
+        if 0 <= index < len(flags):
+            flags[index]["dismissed"] = True
+            flags[index]["dismissed_by"] = dismissed_by
+            flags[index]["dismissed_note"] = note
+            self.red_flags_json = json.dumps(flags)
+            return True
+        return False
+
+    def restore_flag(self, index: int) -> bool:
+        """Restore a previously dismissed flag back to active."""
+        flags = json.loads(self.red_flags_json) if self.red_flags_json else []
+        if 0 <= index < len(flags):
+            flags[index].pop("dismissed", None)
+            flags[index].pop("dismissed_by", None)
+            flags[index].pop("dismissed_note", None)
+            self.red_flags_json = json.dumps(flags)
+            return True
+        return False
+
 
 # ---------------------------------------------------------------------------
 # Hostile watchlist — corps/alliances to flag

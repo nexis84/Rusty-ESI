@@ -20,7 +20,7 @@ from fastapi import (
     BackgroundTasks, Depends, FastAPI, Form, HTTPException,
     Request, Response,
 )
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -533,9 +533,9 @@ async def review_application(
         for s in db.query(StandingCache).all()
     }
 
-    # Convert flag dicts back to objects for template
-    from analysis.red_flags import RedFlag
-    flags = [RedFlag(**f) for f in flags_raw]
+    # Pass raw flag dicts to template — Jinja2 handles .attr access on dicts,
+    # and the dismissed/dismissed_by/dismissed_note keys are preserved for display.
+    flags = flags_raw
 
     # Classify skills into PVP / Industry / Support buckets
     from utils.skills_profile import classify_skills
@@ -657,6 +657,88 @@ async def save_notes(
     db.commit()
     request.session["flash_success"] = "Notes saved."
     return RedirectResponse(f"/applications/{app_id}", status_code=303)
+
+
+@app.post("/applications/{app_id}/flags/{flag_index}/dismiss")
+async def dismiss_flag_route(
+    request: Request,
+    app_id: int,
+    flag_index: int,
+    csrf_token: str = Form(...),
+    note: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    """Accept/dismiss a single red flag and recalculate the trust score."""
+    _require_recruiter(request)
+    if not _csrf_ok(request, csrf_token):
+        raise HTTPException(403, "Invalid CSRF token")
+
+    app_rec = db.query(Application).filter_by(id=app_id).first()
+    if not app_rec:
+        raise HTTPException(404)
+
+    dismissed_by = request.session.get("character_name", "Unknown")
+    if not app_rec.dismiss_flag(flag_index, dismissed_by=dismissed_by, note=note):
+        raise HTTPException(400, "Flag index out of range")
+
+    from analysis.scorer import recalculate_from_stored_flags
+    flag_dicts = app_rec.get_red_flags()
+    report = recalculate_from_stored_flags(app_rec.character_id, app_rec.character_name, flag_dicts)
+    app_rec.trust_score = report.score
+    app_rec.score_band = report.band
+    app_rec.recommendation = report.recommendation
+    app_rec.set_score_breakdown(report.score_breakdown)
+    db.commit()
+
+    active_count = sum(1 for f in flag_dicts if not f.get("dismissed"))
+    return JSONResponse({
+        "score": report.score,
+        "band": report.band,
+        "recommendation": report.recommendation,
+        "breakdown": report.score_breakdown,
+        "active_flags": active_count,
+        "total_flags": len(flag_dicts),
+    })
+
+
+@app.post("/applications/{app_id}/flags/{flag_index}/restore")
+async def restore_flag_route(
+    request: Request,
+    app_id: int,
+    flag_index: int,
+    csrf_token: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    """Restore a previously accepted flag and recalculate the trust score."""
+    _require_recruiter(request)
+    if not _csrf_ok(request, csrf_token):
+        raise HTTPException(403, "Invalid CSRF token")
+
+    app_rec = db.query(Application).filter_by(id=app_id).first()
+    if not app_rec:
+        raise HTTPException(404)
+
+    if not app_rec.restore_flag(flag_index):
+        raise HTTPException(400, "Flag index out of range")
+
+    from analysis.scorer import recalculate_from_stored_flags
+    flag_dicts = app_rec.get_red_flags()
+    report = recalculate_from_stored_flags(app_rec.character_id, app_rec.character_name, flag_dicts)
+    app_rec.trust_score = report.score
+    app_rec.score_band = report.band
+    app_rec.recommendation = report.recommendation
+    app_rec.set_score_breakdown(report.score_breakdown)
+    db.commit()
+
+    active_count = sum(1 for f in flag_dicts if not f.get("dismissed"))
+    return JSONResponse({
+        "score": report.score,
+        "band": report.band,
+        "recommendation": report.recommendation,
+        "breakdown": report.score_breakdown,
+        "active_flags": active_count,
+        "total_flags": len(flag_dicts),
+    })
 
 
 @app.post("/applications/{app_id}/reanalyze")

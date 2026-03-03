@@ -131,6 +131,54 @@ def _band(score: int) -> tuple[str, str]:
 
 
 # ---------------------------------------------------------------------------
+# Recalculator — used when a recruiter accepts/dismisses individual flags
+# ---------------------------------------------------------------------------
+
+def recalculate_from_stored_flags(
+    character_id: int,
+    character_name: str,
+    flag_dicts: list[dict],
+) -> "TrustReport":
+    """
+    Rebuild a TrustReport from the stored flag dict list.
+    Flags with dismissed=True are excluded from scoring but kept in the list.
+    Called after a recruiter accepts or restores a red flag.
+    """
+    active_flags = [
+        RedFlag(
+            category=f["category"],
+            severity=f["severity"],
+            message=f["message"],
+            detail=f["detail"],
+        )
+        for f in flag_dicts
+        if not f.get("dismissed", False)
+    ]
+
+    breakdown = {
+        "corp_stability":   _score_corp_stability(active_flags),
+        "no_hostiles":      _score_no_hostiles(active_flags),
+        "clean_kills":      _score_clean_kills(active_flags),
+        "wallet_integrity": _score_wallet(active_flags),
+        "contacts_clean":   _score_contacts(active_flags),
+        "assets_safe":      _score_assets(active_flags),
+        "char_age":         _score_char_age(active_flags),
+    }
+    total = sum(breakdown.values())
+    band, recommendation = _band(total)
+
+    return TrustReport(
+        character_id=character_id,
+        character_name=character_name,
+        score=total,
+        band=band,
+        recommendation=recommendation,
+        red_flags=active_flags,
+        score_breakdown=breakdown,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Main scorer
 # ---------------------------------------------------------------------------
 
