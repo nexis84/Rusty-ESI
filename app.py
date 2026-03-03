@@ -254,11 +254,15 @@ async def _handle_service_account_callback(
     access_token, refresh_token, expires_at,
 ):
     """Register or update the director service account used for standings sync."""
-    from esi.endpoints import get_character_public
+    from esi.endpoints import get_character_public, get_corporation_public
     try:
         pub = await get_character_public(character_id)
         corp_id = pub.get("corporation_id", 0)
         alliance_id = pub.get("alliance_id")
+        # ESI character endpoint caches longer than corp endpoint — fall back to corp
+        if not alliance_id and corp_id:
+            corp_pub = await get_corporation_public(corp_id)
+            alliance_id = corp_pub.get("alliance_id")
     except Exception:
         corp_id = 0
         alliance_id = None
