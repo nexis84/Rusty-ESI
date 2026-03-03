@@ -565,10 +565,19 @@ async def review_application(
             pass
 
     # Build standings lookup: entity_id -> standing value
-    standings_map = {
-        s.entity_id: s.standing
-        for s in db.query(StandingCache).all()
-    }
+    all_standings_rows = db.query(StandingCache).all()
+    standings_map = {s.entity_id: s.standing for s in all_standings_rows}
+
+    # Map entity_id -> flag_index for Standings flags (drives inline accept buttons in corp history)
+    standings_flag_index: dict[int, int] = {}
+    _name_to_eid = {s.entity_name: s.entity_id for s in all_standings_rows if s.entity_name}
+    for _idx, _f in enumerate(flags_raw):
+        if _f.get("category") == "Standings":
+            _msg = _f.get("message", "")
+            for _name, _eid in _name_to_eid.items():
+                if _name and _name in _msg:
+                    standings_flag_index[_eid] = _idx
+                    break
 
     # Pass raw flag dicts to template — Jinja2 handles .attr access on dicts,
     # and the dismissed/dismissed_by/dismissed_note keys are preserved for display.
@@ -633,6 +642,7 @@ async def review_application(
         "skill_profile": skill_profile,
         "location_display": location_display,
         "standings_map": standings_map,
+        "standings_flag_index": standings_flag_index,
         "corp_alliance_map": corp_alliance_map,
     })
 

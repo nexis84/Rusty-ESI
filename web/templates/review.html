@@ -309,14 +309,44 @@
                                 <span style="font-size:10px;color:var(--text-dim);margin-left:5px;">0.0</span>
                                 {% endif %}
                             {% endif %}
+                            {% set corp_flag_idx = standings_flag_index.get(entry.corporation_id) %}
+                            {% if corp_flag_idx is not none %}
+                                {% set cf = flags[corp_flag_idx] %}
+                                {% if cf.dismissed %}
+                                <span style="font-size:10px;font-weight:600;color:#27ae60;background:rgba(39,174,96,0.15);border:1px solid rgba(39,174,96,0.35);border-radius:3px;padding:1px 5px;margin-left:4px;">✓ Accepted</span>
+                                <button onclick="flagAction({{ app.id }}, {{ corp_flag_idx }}, 'restore', '{{ csrf_token }}')" style="background:none;border:1px solid var(--border);color:var(--text-dim);font-size:10px;cursor:pointer;border-radius:3px;padding:1px 5px;">↩ Restore</button>
+                                {% else %}
+                                <button onclick="flagAction({{ app.id }}, {{ corp_flag_idx }}, 'dismiss', '{{ csrf_token }}')" style="background:none;border:1px solid rgba(39,174,96,0.5);color:#27ae60;font-size:10px;cursor:pointer;border-radius:3px;padding:1px 5px;">✓ Accept</button>
+                                {% endif %}
+                            {% endif %}
                             {% set alliances = corp_alliance_map.get(entry.corporation_id) %}
                             {% if alliances %}
                             <button onclick="var el=this.nextElementSibling;var open=el.style.display!=='none';el.style.display=open?'none':'block';this.textContent=open?'▶ Alliances ({{ alliances|length }})':'▼ Alliances ({{ alliances|length }})';" style="background:none;border:1px solid var(--border);color:var(--text-dim);font-size:10px;cursor:pointer;border-radius:3px;padding:1px 6px;margin-left:6px;vertical-align:middle;">▶ Alliances ({{ alliances|length }})</button>
                             <div style="display:none;margin-top:4px;padding:4px 8px;background:var(--surface);border-radius:4px;border:1px solid var(--border);">
                                 {% for a in alliances %}
-                                <div style="font-size:11px;color:var(--text-dim);padding:1px 0;">
+                                {% set ally_s = standings_map.get(a.alliance_id) %}
+                                {% set ally_flag_idx = standings_flag_index.get(a.alliance_id) %}
+                                <div style="font-size:11px;color:var(--text-dim);padding:3px 0;display:flex;align-items:center;flex-wrap:wrap;gap:4px;">
                                     <a href="https://zkillboard.com/alliance/{{ a.alliance_id }}/" target="_blank" style="color:var(--text-dim);text-decoration:none;">{{ a.alliance_name }}</a>
-                                    {% if a.start_date %}<span style="margin-left:4px;opacity:.6;">from {{ a.start_date }}</span>{% endif %}
+                                    {% if a.start_date %}<span style="opacity:.6;">from {{ a.start_date }}</span>{% endif %}
+                                    {% if ally_s is not none %}
+                                        {% if ally_s <= -5.0 %}
+                                        <span style="font-size:10px;font-weight:600;color:#fff;background:#c0392b;border-radius:3px;padding:1px 5px;">{{ '%.1f' | format(ally_s) }}</span>
+                                        {% elif ally_s < 0 %}
+                                        <span style="font-size:10px;font-weight:600;color:#fff;background:#e67e22;border-radius:3px;padding:1px 5px;">{{ '%.1f' | format(ally_s) }}</span>
+                                        {% elif ally_s > 0 %}
+                                        <span style="font-size:10px;font-weight:600;color:#fff;background:#27ae60;border-radius:3px;padding:1px 5px;">+{{ '%.1f' | format(ally_s) }}</span>
+                                        {% endif %}
+                                    {% endif %}
+                                    {% if ally_flag_idx is not none %}
+                                        {% set af = flags[ally_flag_idx] %}
+                                        {% if af.dismissed %}
+                                        <span style="font-size:10px;font-weight:600;color:#27ae60;background:rgba(39,174,96,0.15);border:1px solid rgba(39,174,96,0.35);border-radius:3px;padding:1px 5px;">✓ Accepted</span>
+                                        <button onclick="flagAction({{ app.id }}, {{ ally_flag_idx }}, 'restore', '{{ csrf_token }}')" style="background:none;border:1px solid var(--border);color:var(--text-dim);font-size:10px;cursor:pointer;border-radius:3px;padding:1px 5px;">↩ Restore</button>
+                                        {% else %}
+                                        <button onclick="flagAction({{ app.id }}, {{ ally_flag_idx }}, 'dismiss', '{{ csrf_token }}')" style="background:none;border:1px solid rgba(39,174,96,0.5);color:#27ae60;font-size:10px;cursor:pointer;border-radius:3px;padding:1px 5px;">✓ Accept</button>
+                                        {% endif %}
+                                    {% endif %}
                                 </div>
                                 {% endfor %}
                             </div>
@@ -347,14 +377,44 @@
                                     <span style="font-size:10px;color:var(--text-dim);margin-left:5px;">0.0</span>
                                     {% endif %}
                                 {% endif %}
+                                {% set corp_flag_idx = standings_flag_index.get(entry.corporation_id) %}
+                                {% if corp_flag_idx is not none %}
+                                    {% set cf = flags[corp_flag_idx] %}
+                                    {% if cf.dismissed %}
+                                    <span style="font-size:10px;font-weight:600;color:#27ae60;background:rgba(39,174,96,0.15);border:1px solid rgba(39,174,96,0.35);border-radius:3px;padding:1px 5px;margin-left:4px;">✓ Accepted</span>
+                                    <button onclick="flagAction({{ app.id }}, {{ corp_flag_idx }}, 'restore', '{{ csrf_token }}')" style="background:none;border:1px solid var(--border);color:var(--text-dim);font-size:10px;cursor:pointer;border-radius:3px;padding:1px 5px;">↩ Restore</button>
+                                    {% else %}
+                                    <button onclick="flagAction({{ app.id }}, {{ corp_flag_idx }}, 'dismiss', '{{ csrf_token }}')" style="background:none;border:1px solid rgba(39,174,96,0.5);color:#27ae60;font-size:10px;cursor:pointer;border-radius:3px;padding:1px 5px;">✓ Accept</button>
+                                    {% endif %}
+                                {% endif %}
                                 {% set alliances = corp_alliance_map.get(entry.corporation_id) %}
                                 {% if alliances %}
                                 <button onclick="var el=this.nextElementSibling;var open=el.style.display!=='none';el.style.display=open?'none':'block';this.textContent=open?'▶ Alliances ({{ alliances|length }})':'▼ Alliances ({{ alliances|length }})';" style="background:none;border:1px solid var(--border);color:var(--text-dim);font-size:10px;cursor:pointer;border-radius:3px;padding:1px 6px;margin-left:6px;vertical-align:middle;">▶ Alliances ({{ alliances|length }})</button>
                                 <div style="display:none;margin-top:4px;padding:4px 8px;background:var(--surface);border-radius:4px;border:1px solid var(--border);">
                                     {% for a in alliances %}
-                                    <div style="font-size:11px;color:var(--text-dim);padding:1px 0;">
+                                    {% set ally_s = standings_map.get(a.alliance_id) %}
+                                    {% set ally_flag_idx = standings_flag_index.get(a.alliance_id) %}
+                                    <div style="font-size:11px;color:var(--text-dim);padding:3px 0;display:flex;align-items:center;flex-wrap:wrap;gap:4px;">
                                         <a href="https://zkillboard.com/alliance/{{ a.alliance_id }}/" target="_blank" style="color:var(--text-dim);text-decoration:none;">{{ a.alliance_name }}</a>
-                                        {% if a.start_date %}<span style="margin-left:4px;opacity:.6;">from {{ a.start_date }}</span>{% endif %}
+                                        {% if a.start_date %}<span style="opacity:.6;">from {{ a.start_date }}</span>{% endif %}
+                                        {% if ally_s is not none %}
+                                            {% if ally_s <= -5.0 %}
+                                            <span style="font-size:10px;font-weight:600;color:#fff;background:#c0392b;border-radius:3px;padding:1px 5px;">{{ '%.1f' | format(ally_s) }}</span>
+                                            {% elif ally_s < 0 %}
+                                            <span style="font-size:10px;font-weight:600;color:#fff;background:#e67e22;border-radius:3px;padding:1px 5px;">{{ '%.1f' | format(ally_s) }}</span>
+                                            {% elif ally_s > 0 %}
+                                            <span style="font-size:10px;font-weight:600;color:#fff;background:#27ae60;border-radius:3px;padding:1px 5px;">+{{ '%.1f' | format(ally_s) }}</span>
+                                            {% endif %}
+                                        {% endif %}
+                                        {% if ally_flag_idx is not none %}
+                                            {% set af = flags[ally_flag_idx] %}
+                                            {% if af.dismissed %}
+                                            <span style="font-size:10px;font-weight:600;color:#27ae60;background:rgba(39,174,96,0.15);border:1px solid rgba(39,174,96,0.35);border-radius:3px;padding:1px 5px;">✓ Accepted</span>
+                                            <button onclick="flagAction({{ app.id }}, {{ ally_flag_idx }}, 'restore', '{{ csrf_token }}')" style="background:none;border:1px solid var(--border);color:var(--text-dim);font-size:10px;cursor:pointer;border-radius:3px;padding:1px 5px;">↩ Restore</button>
+                                            {% else %}
+                                            <button onclick="flagAction({{ app.id }}, {{ ally_flag_idx }}, 'dismiss', '{{ csrf_token }}')" style="background:none;border:1px solid rgba(39,174,96,0.5);color:#27ae60;font-size:10px;cursor:pointer;border-radius:3px;padding:1px 5px;">✓ Accept</button>
+                                            {% endif %}
+                                        {% endif %}
                                     </div>
                                     {% endfor %}
                                 </div>
