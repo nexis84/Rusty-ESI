@@ -49,6 +49,7 @@ def check_corp_history(
     hostile_ids: set[int],
     watchlist_names: dict[int, str],
     standings: Optional[list[dict]] = None,
+    corp_alliance_map: Optional[dict] = None,
 ) -> list[RedFlag]:
     flags = []
     if _is_error(corp_history) or not corp_history:
@@ -108,6 +109,27 @@ def check_corp_history(
                 "Short stints may indicate failed infiltration attempts.",
             ))
             break  # Only flag once
+
+    # Flag historical alliances (via corp_alliance_map) that are on the watchlist
+    if corp_alliance_map:
+        seen_hostile_alliance_ids: set[int] = set()
+        for entry in history:
+            corp_id_h = entry.get("corporation_id")
+            corp_name_h = entry.get("corp_name") or f"Corp #{corp_id_h}"
+            for ally_entry in (corp_alliance_map.get(corp_id_h) or []):
+                ally_id = ally_entry.get("alliance_id")
+                if not ally_id or ally_id in seen_hostile_alliance_ids:
+                    continue
+                if ally_id in hostile_ids:
+                    seen_hostile_alliance_ids.add(ally_id)
+                    ally_name = ally_entry.get("alliance_name") or watchlist_names.get(ally_id, f"Alliance #{ally_id}")
+                    ally_start = ally_entry.get("start_date", "")[:10]
+                    flags.append(RedFlag(
+                        "Corp History", "critical",
+                        f"Historical corp in hostile alliance: {ally_name}",
+                        f"{corp_name_h} was a member of {ally_name} from {ally_start}. "
+                        "This alliance is on the hostile watchlist.",
+                    ))
 
     return flags
 
@@ -526,6 +548,7 @@ def run_all_checks(
         hostile_ids,
         watchlist_names,
         standings=standings,
+        corp_alliance_map=corp_alliance_map,
     )
     flags += check_contacts(esi_data.get("contacts", []), hostile_ids)
     flags += check_wallet(

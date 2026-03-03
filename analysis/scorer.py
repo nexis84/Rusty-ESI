@@ -63,7 +63,7 @@ def _score_corp_stability(flags: list[RedFlag]) -> int:
 
 def _score_no_hostiles(flags: list[RedFlag]) -> int:
     """20 points — time in known enemy corps/alliances."""
-    hostile_flags = [f for f in flags if "hostile corp" in f.message.lower()]
+    hostile_flags = [f for f in flags if "hostile corp" in f.message.lower() or "hostile alliance" in f.message.lower()]
     deduction = len(hostile_flags) * 20  # Each hostile affiliation is severe
     return max(0, WEIGHTS["no_hostiles"] - deduction)
 

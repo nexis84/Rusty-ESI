@@ -568,16 +568,26 @@ async def review_application(
     all_standings_rows = db.query(StandingCache).all()
     standings_map = {s.entity_id: s.standing for s in all_standings_rows}
 
-    # Map entity_id -> flag_index for Standings flags (drives inline accept buttons in corp history)
-    standings_flag_index: dict[int, int] = {}
-    _name_to_eid = {s.entity_name: s.entity_id for s in all_standings_rows if s.entity_name}
+    # Load watchlist for inline hostile badges in corp history
+    watchlist_entries = db.query(WatchlistEntry).all()
+    watchlist_ids: set[int] = {w.entity_id for w in watchlist_entries}
+
+    # Build entity_id -> flag_index for ALL flags (drives inline accept buttons)
+    # Matches by entity name appearing anywhere in the flag message.
+    _name_to_eid: dict[str, int] = {}
+    for s in all_standings_rows:
+        if s.entity_name:
+            _name_to_eid[s.entity_name] = s.entity_id
+    for w in watchlist_entries:
+        if w.entity_name:
+            _name_to_eid[w.entity_name] = w.entity_id
+
+    entity_flag_index: dict[int, int] = {}
     for _idx, _f in enumerate(flags_raw):
-        if _f.get("category") == "Standings":
-            _msg = _f.get("message", "")
-            for _name, _eid in _name_to_eid.items():
-                if _name and _name in _msg:
-                    standings_flag_index[_eid] = _idx
-                    break
+        _msg = _f.get("message", "")
+        for _name, _eid in _name_to_eid.items():
+            if _name and _name in _msg and _eid not in entity_flag_index:
+                entity_flag_index[_eid] = _idx
 
     # Pass raw flag dicts to template — Jinja2 handles .attr access on dicts,
     # and the dismissed/dismissed_by/dismissed_note keys are preserved for display.
@@ -642,7 +652,8 @@ async def review_application(
         "skill_profile": skill_profile,
         "location_display": location_display,
         "standings_map": standings_map,
-        "standings_flag_index": standings_flag_index,
+        "entity_flag_index": entity_flag_index,
+        "watchlist_ids": watchlist_ids,
         "corp_alliance_map": corp_alliance_map,
     })
 
