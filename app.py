@@ -493,6 +493,12 @@ async def review_application(
             except Exception:
                 pass
 
+    # Build standings lookup: entity_id -> standing value
+    standings_map = {
+        s.entity_id: s.standing
+        for s in db.query(StandingCache).all()
+    }
+
     # Convert flag dicts back to objects for template
     from analysis.red_flags import RedFlag
     flags = [RedFlag(**f) for f in flags_raw]
@@ -555,6 +561,7 @@ async def review_application(
         "breakdown": breakdown,
         "skill_profile": skill_profile,
         "location_display": location_display,
+        "standings_map": standings_map,
     })
 
 

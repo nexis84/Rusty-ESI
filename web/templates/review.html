@@ -280,6 +280,18 @@
                         <div style="font-size:13px;font-weight:500;">
                             <a href="https://evewho.com/corporation/{{ entry.corporation_id }}" target="_blank" style="color:var(--text);text-decoration:none;">{{ entry.corp_name if entry.corp_name else 'Corp #' ~ entry.corporation_id }}</a>
                             <a href="https://zkillboard.com/corporation/{{ entry.corporation_id }}/" target="_blank" style="color:var(--text-dim);font-size:11px;text-decoration:none;margin-left:4px;">[zK]</a>
+                            {% set standing = standings_map.get(entry.corporation_id) %}
+                            {% if standing is not none %}
+                                {% if standing <= -5.0 %}
+                                <span style="font-size:10px;font-weight:600;color:#fff;background:#c0392b;border-radius:3px;padding:1px 5px;margin-left:5px;">{{ '%.1f' | format(standing) }}</span>
+                                {% elif standing < 0 %}
+                                <span style="font-size:10px;font-weight:600;color:#fff;background:#e67e22;border-radius:3px;padding:1px 5px;margin-left:5px;">{{ '%.1f' | format(standing) }}</span>
+                                {% elif standing > 0 %}
+                                <span style="font-size:10px;font-weight:600;color:#fff;background:#27ae60;border-radius:3px;padding:1px 5px;margin-left:5px;">+{{ '%.1f' | format(standing) }}</span>
+                                {% else %}
+                                <span style="font-size:10px;color:var(--text-dim);margin-left:5px;">0.0</span>
+                                {% endif %}
+                            {% endif %}
                         </div>
                         <div style="font-size:11px;color:var(--text-dim);margin-top:2px;">
                             From: {{ entry.start_date[:10] if entry.start_date else '?' }}
@@ -294,6 +306,18 @@
                             <div style="font-size:13px;font-weight:500;">
                                 <a href="https://evewho.com/corporation/{{ entry.corporation_id }}" target="_blank" style="color:var(--text);text-decoration:none;">{{ entry.corp_name if entry.corp_name else 'Corp #' ~ entry.corporation_id }}</a>
                                 <a href="https://zkillboard.com/corporation/{{ entry.corporation_id }}/" target="_blank" style="color:var(--text-dim);font-size:11px;text-decoration:none;margin-left:4px;">[zK]</a>
+                                {% set standing = standings_map.get(entry.corporation_id) %}
+                                {% if standing is not none %}
+                                    {% if standing <= -5.0 %}
+                                    <span style="font-size:10px;font-weight:600;color:#fff;background:#c0392b;border-radius:3px;padding:1px 5px;margin-left:5px;">{{ '%.1f' | format(standing) }}</span>
+                                    {% elif standing < 0 %}
+                                    <span style="font-size:10px;font-weight:600;color:#fff;background:#e67e22;border-radius:3px;padding:1px 5px;margin-left:5px;">{{ '%.1f' | format(standing) }}</span>
+                                    {% elif standing > 0 %}
+                                    <span style="font-size:10px;font-weight:600;color:#fff;background:#27ae60;border-radius:3px;padding:1px 5px;margin-left:5px;">+{{ '%.1f' | format(standing) }}</span>
+                                    {% else %}
+                                    <span style="font-size:10px;color:var(--text-dim);margin-left:5px;">0.0</span>
+                                    {% endif %}
+                                {% endif %}
                             </div>
                             <div style="font-size:11px;color:var(--text-dim);margin-top:2px;">
                                 From: {{ entry.start_date[:10] if entry.start_date else '?' }}
