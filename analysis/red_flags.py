@@ -334,12 +334,14 @@ def check_standings(
     alliance_id: int,
     corp_history: list,
     standings: list[dict],
+    corp_alliance_map: Optional[dict] = None,
 ) -> list[RedFlag]:
     """
-    Check character, current corp, current alliance, and all historical corps
-    against the standings cache (populated from alliance contacts).
+    Check character, current corp, current alliance, all historical corps,
+    and all alliances those corps have been in against the standings cache.
 
-    standings: list of {entity_id, entity_type, entity_name, standing, source}
+    standings:         list of {entity_id, entity_type, entity_name, standing, source}
+    corp_alliance_map: {corp_id: [{alliance_id, alliance_name, start_date}]}
     """
     flags = []
     if not standings:
@@ -393,6 +395,27 @@ def check_standings(
         start = entry.get("start_date", "")[:10]
         corp_name = entry.get("corp_name") or f"Corp #{hcorp_id}"
         flags += _flag_entity(hcorp_id, "Historical corp", f"{corp_name}, joined {start}")
+
+    # Alliances that historical corps have been in — skip current alliance (already checked)
+    if corp_alliance_map:
+        seen_alliance_ids: set[int] = {alliance_id} if alliance_id else set()
+        for entry in (corp_history or []):
+            hcorp_id = entry.get("corporation_id")
+            if not hcorp_id:
+                continue
+            corp_name = entry.get("corp_name") or f"Corp #{hcorp_id}"
+            for ally_entry in corp_alliance_map.get(hcorp_id, []):
+                ally_id = ally_entry.get("alliance_id")
+                if not ally_id or ally_id in seen_alliance_ids:
+                    continue
+                seen_alliance_ids.add(ally_id)
+                ally_name = ally_entry.get("alliance_name") or f"Alliance #{ally_id}"
+                ally_start = ally_entry.get("start_date", "")[:10]
+                flags += _flag_entity(
+                    ally_id,
+                    "Alliance (corp history)",
+                    f"{corp_name} was in {ally_name} from {ally_start}",
+                )
 
     return flags
 
@@ -493,6 +516,7 @@ def run_all_checks(
     corp_member_ids: set[int],
     zkb_data: Optional[list] = None,
     standings: Optional[list[dict]] = None,
+    corp_alliance_map: Optional[dict] = None,
 ) -> list[RedFlag]:
     """Run every red flag check and return the combined list."""
     flags: list[RedFlag] = []
@@ -527,7 +551,7 @@ def run_all_checks(
         esi_data.get("skills", {}),
     )
 
-    # Standings check (character, corp, alliance + full corp history)
+    # Standings check (character, corp, alliance + full corp history + alliance history)
     if standings:
         char_pub = esi_data.get("character_public", {})
         char_id = char_pub.get("id") or char_pub.get("character_id", 0)
@@ -537,6 +561,7 @@ def run_all_checks(
             char_id, corp_id, alliance_id,
             esi_data.get("corp_history", []),
             standings,
+            corp_alliance_map=corp_alliance_map,
         )
 
     return flags

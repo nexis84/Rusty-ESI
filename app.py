@@ -384,6 +384,42 @@ async def _fetch_and_score(application_id: int):
             for s in db.query(StandingCache).all()
         ]
 
+        # Build corp -> alliance history map for standings checks
+        corp_alliance_map: dict = {}
+        corp_history = esi_data.get("corp_history", [])
+        if isinstance(corp_history, list) and corp_history:
+            try:
+                from esi.endpoints import get_corp_alliance_history, resolve_ids as _resolve_ids
+                unique_corp_ids = list({
+                    e["corporation_id"] for e in corp_history
+                    if isinstance(e, dict) and e.get("corporation_id")
+                })
+                alliance_results = await asyncio.gather(
+                    *[get_corp_alliance_history(cid) for cid in unique_corp_ids],
+                    return_exceptions=True,
+                )
+                all_alliance_ids: set[int] = set()
+                corp_raw: dict = {}
+                for cid, result in zip(unique_corp_ids, alliance_results):
+                    if isinstance(result, list) and result:
+                        entries = [e for e in result if e.get("alliance_id")]
+                        corp_raw[cid] = entries
+                        for e in entries:
+                            all_alliance_ids.add(e["alliance_id"])
+                if all_alliance_ids:
+                    alliance_name_map = await _resolve_ids(list(all_alliance_ids))
+                    for cid, entries in corp_raw.items():
+                        corp_alliance_map[cid] = [
+                            {
+                                "alliance_id": e["alliance_id"],
+                                "alliance_name": alliance_name_map.get(e["alliance_id"], {}).get("name", f"Alliance #{e['alliance_id']}"),
+                                "start_date": e.get("start_date", "")[:10],
+                            }
+                            for e in entries
+                        ]
+            except Exception:
+                pass
+
         # Run analysis
         report = calculate_trust_score(
             esi_data=esi_data,
@@ -394,6 +430,7 @@ async def _fetch_and_score(application_id: int):
             corp_member_ids=set(),
             zkb_data=zkb_data,
             standings=standings,
+            corp_alliance_map=corp_alliance_map,
         )
 
         # Persist results
