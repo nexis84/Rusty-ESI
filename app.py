@@ -493,6 +493,40 @@ async def review_application(
             except Exception:
                 pass
 
+    # Fetch alliance history for each unique corp in history
+    corp_alliance_map: dict = {}  # corp_id -> [{alliance_id, alliance_name, start_date}]
+    if isinstance(corp_history, list) and corp_history:
+        try:
+            from esi.endpoints import get_corp_alliance_history
+            unique_corp_ids = list({e["corporation_id"] for e in corp_history if isinstance(e, dict) and e.get("corporation_id")})
+            alliance_history_results = await asyncio.gather(
+                *[get_corp_alliance_history(cid) for cid in unique_corp_ids],
+                return_exceptions=True,
+            )
+            # Collect all unique alliance IDs to resolve names
+            all_alliance_ids: set[int] = set()
+            corp_raw_histories: dict = {}
+            for cid, result in zip(unique_corp_ids, alliance_history_results):
+                if isinstance(result, list) and result:
+                    entries = [e for e in result if e.get("alliance_id")]
+                    corp_raw_histories[cid] = entries
+                    for e in entries:
+                        all_alliance_ids.add(e["alliance_id"])
+            if all_alliance_ids:
+                from esi.endpoints import resolve_ids as _resolve
+                alliance_name_map = await _resolve(list(all_alliance_ids))
+                for cid, entries in corp_raw_histories.items():
+                    corp_alliance_map[cid] = [
+                        {
+                            "alliance_id": e["alliance_id"],
+                            "alliance_name": alliance_name_map.get(e["alliance_id"], {}).get("name", f"Alliance #{e['alliance_id']}"),
+                            "start_date": e.get("start_date", "")[:10],
+                        }
+                        for e in entries
+                    ]
+        except Exception:
+            pass
+
     # Build standings lookup: entity_id -> standing value
     standings_map = {
         s.entity_id: s.standing
@@ -562,6 +596,7 @@ async def review_application(
         "skill_profile": skill_profile,
         "location_display": location_display,
         "standings_map": standings_map,
+        "corp_alliance_map": corp_alliance_map,
     })
 
 

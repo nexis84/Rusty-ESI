@@ -37,6 +37,17 @@ async def get_corp_history(character_id: int) -> list:
     )
 
 
+async def get_corp_alliance_history(corporation_id: int) -> list:
+    """
+    Alliance history for a corporation (public).
+    Returns list of {alliance_id, is_deleted, record_id, start_date}
+    """
+    result = await EsiClient.public_get(
+        f"/corporations/{corporation_id}/alliancehistory/"
+    )
+    return result if isinstance(result, list) else []
+
+
 # ---------------------------------------------------------------------------
 # Authenticated endpoints
 # ---------------------------------------------------------------------------

@@ -292,6 +292,18 @@
                                 <span style="font-size:10px;color:var(--text-dim);margin-left:5px;">0.0</span>
                                 {% endif %}
                             {% endif %}
+                            {% set alliances = corp_alliance_map.get(entry.corporation_id) %}
+                            {% if alliances %}
+                            <button onclick="var el=this.nextElementSibling;var open=el.style.display!=='none';el.style.display=open?'none':'block';this.textContent=open?'▶ Alliances ({{ alliances|length }})':'▼ Alliances ({{ alliances|length }})';" style="background:none;border:1px solid var(--border);color:var(--text-dim);font-size:10px;cursor:pointer;border-radius:3px;padding:1px 6px;margin-left:6px;vertical-align:middle;">▶ Alliances ({{ alliances|length }})</button>
+                            <div style="display:none;margin-top:4px;padding:4px 8px;background:var(--surface);border-radius:4px;border:1px solid var(--border);">
+                                {% for a in alliances %}
+                                <div style="font-size:11px;color:var(--text-dim);padding:1px 0;">
+                                    <a href="https://zkillboard.com/alliance/{{ a.alliance_id }}/" target="_blank" style="color:var(--text-dim);text-decoration:none;">{{ a.alliance_name }}</a>
+                                    {% if a.start_date %}<span style="margin-left:4px;opacity:.6;">from {{ a.start_date }}</span>{% endif %}
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
                         </div>
                         <div style="font-size:11px;color:var(--text-dim);margin-top:2px;">
                             From: {{ entry.start_date[:10] if entry.start_date else '?' }}
@@ -317,6 +329,18 @@
                                     {% else %}
                                     <span style="font-size:10px;color:var(--text-dim);margin-left:5px;">0.0</span>
                                     {% endif %}
+                                {% endif %}
+                                {% set alliances = corp_alliance_map.get(entry.corporation_id) %}
+                                {% if alliances %}
+                                <button onclick="var el=this.nextElementSibling;var open=el.style.display!=='none';el.style.display=open?'none':'block';this.textContent=open?'▶ Alliances ({{ alliances|length }})':'▼ Alliances ({{ alliances|length }})';" style="background:none;border:1px solid var(--border);color:var(--text-dim);font-size:10px;cursor:pointer;border-radius:3px;padding:1px 6px;margin-left:6px;vertical-align:middle;">▶ Alliances ({{ alliances|length }})</button>
+                                <div style="display:none;margin-top:4px;padding:4px 8px;background:var(--surface);border-radius:4px;border:1px solid var(--border);">
+                                    {% for a in alliances %}
+                                    <div style="font-size:11px;color:var(--text-dim);padding:1px 0;">
+                                        <a href="https://zkillboard.com/alliance/{{ a.alliance_id }}/" target="_blank" style="color:var(--text-dim);text-decoration:none;">{{ a.alliance_name }}</a>
+                                        {% if a.start_date %}<span style="margin-left:4px;opacity:.6;">from {{ a.start_date }}</span>{% endif %}
+                                    </div>
+                                    {% endfor %}
+                                </div>
                                 {% endif %}
                             </div>
                             <div style="font-size:11px;color:var(--text-dim);margin-top:2px;">
