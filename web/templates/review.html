@@ -309,7 +309,7 @@
                                 <span style="font-size:10px;color:var(--text-dim);margin-left:5px;">0.0</span>
                                 {% endif %}
                             {% endif %}
-                            {% set corp_flag_idx = standings_flag_index.get(entry.corporation_id) %}
+                            {% set corp_flag_idx = entity_flag_index.get(entry.corporation_id) %}
                             {% if corp_flag_idx is not none %}
                                 {% set cf = flags[corp_flag_idx] %}
                                 {% if cf.dismissed %}
@@ -325,11 +325,14 @@
                             <div style="display:none;margin-top:4px;padding:4px 8px;background:var(--surface);border-radius:4px;border:1px solid var(--border);">
                                 {% for a in alliances %}
                                 {% set ally_s = standings_map.get(a.alliance_id) %}
-                                {% set ally_flag_idx = standings_flag_index.get(a.alliance_id) %}
+                                {% set ally_flag_idx = entity_flag_index.get(a.alliance_id) %}
+                                {% set ally_hostile = a.alliance_id in watchlist_ids %}
                                 <div style="font-size:11px;color:var(--text-dim);padding:3px 0;display:flex;align-items:center;flex-wrap:wrap;gap:4px;">
-                                    <a href="https://zkillboard.com/alliance/{{ a.alliance_id }}/" target="_blank" style="color:var(--text-dim);text-decoration:none;">{{ a.alliance_name }}</a>
+                                    <a href="https://zkillboard.com/alliance/{{ a.alliance_id }}/" target="_blank" style="color:{% if ally_hostile %}#e74c3c{% else %}var(--text-dim){% endif %};text-decoration:none;font-weight:{% if ally_hostile %}600{% else %}400{% endif %};">{{ a.alliance_name }}</a>
                                     {% if a.start_date %}<span style="opacity:.6;">from {{ a.start_date }}</span>{% endif %}
-                                    {% if ally_s is not none %}
+                                    {% if ally_hostile %}
+                                    <span style="font-size:10px;font-weight:700;color:#fff;background:#c0392b;border-radius:3px;padding:1px 5px;">HOSTILE</span>
+                                    {% elif ally_s is not none %}
                                         {% if ally_s <= -5.0 %}
                                         <span style="font-size:10px;font-weight:600;color:#fff;background:#c0392b;border-radius:3px;padding:1px 5px;">{{ '%.1f' | format(ally_s) }}</span>
                                         {% elif ally_s < 0 %}
@@ -377,7 +380,7 @@
                                     <span style="font-size:10px;color:var(--text-dim);margin-left:5px;">0.0</span>
                                     {% endif %}
                                 {% endif %}
-                                {% set corp_flag_idx = standings_flag_index.get(entry.corporation_id) %}
+                                {% set corp_flag_idx = entity_flag_index.get(entry.corporation_id) %}
                                 {% if corp_flag_idx is not none %}
                                     {% set cf = flags[corp_flag_idx] %}
                                     {% if cf.dismissed %}
@@ -393,11 +396,14 @@
                                 <div style="display:none;margin-top:4px;padding:4px 8px;background:var(--surface);border-radius:4px;border:1px solid var(--border);">
                                     {% for a in alliances %}
                                     {% set ally_s = standings_map.get(a.alliance_id) %}
-                                    {% set ally_flag_idx = standings_flag_index.get(a.alliance_id) %}
+                                    {% set ally_flag_idx = entity_flag_index.get(a.alliance_id) %}
+                                    {% set ally_hostile = a.alliance_id in watchlist_ids %}
                                     <div style="font-size:11px;color:var(--text-dim);padding:3px 0;display:flex;align-items:center;flex-wrap:wrap;gap:4px;">
-                                        <a href="https://zkillboard.com/alliance/{{ a.alliance_id }}/" target="_blank" style="color:var(--text-dim);text-decoration:none;">{{ a.alliance_name }}</a>
+                                        <a href="https://zkillboard.com/alliance/{{ a.alliance_id }}/" target="_blank" style="color:{% if ally_hostile %}#e74c3c{% else %}var(--text-dim){% endif %};text-decoration:none;font-weight:{% if ally_hostile %}600{% else %}400{% endif %};">{{ a.alliance_name }}</a>
                                         {% if a.start_date %}<span style="opacity:.6;">from {{ a.start_date }}</span>{% endif %}
-                                        {% if ally_s is not none %}
+                                        {% if ally_hostile %}
+                                        <span style="font-size:10px;font-weight:700;color:#fff;background:#c0392b;border-radius:3px;padding:1px 5px;">HOSTILE</span>
+                                        {% elif ally_s is not none %}
                                             {% if ally_s <= -5.0 %}
                                             <span style="font-size:10px;font-weight:600;color:#fff;background:#c0392b;border-radius:3px;padding:1px 5px;">{{ '%.1f' | format(ally_s) }}</span>
                                             {% elif ally_s < 0 %}
